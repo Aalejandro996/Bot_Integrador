@@ -1,0 +1,13 @@
+Flask==3.1.3
+Flask-SQLAlchemy==3.1.1
+Flask-WTF==1.3.0
+Flask-Limiter==4.1.1
+argon2-cffi==25.1.0
+cryptography==50.0.2
+psycopg[binary]==3.3.6
+gunicorn==26.2.0
+python-dotenv==1.2.4
+segno==1.6.6           # QR de la verificación en dos pasos (SVG)
+pypdf==6.21.4          # lectura de las órdenes de compra en PDF
+tzdata==2025.2         # hora de Venezuela aunque el servidor no traiga la base de zonas
+pytest==9.2.0

@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+.pytest_cache/
+conector_profit/contax_profit.ini
+conector_profit/contax_profit_estado.json
+conector_profit/*.log
+dist/
+build/
+*.spec

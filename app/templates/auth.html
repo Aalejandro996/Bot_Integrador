@@ -1,0 +1,49 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ {'login':'Iniciar sesión','activar':'Activar cuenta','enlace_invalido':'Enlace no válido','cambiar_clave':'Cambiar contraseña','mfa':'Verificación en dos pasos','mfa_configurar':'Activar verificación'}[vista] }} · {{ config.APP_NOMBRE }}</title>
+<meta name="robots" content="noindex, nofollow"><link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any">
+<meta name="theme-color" content="#191919"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"></head>
+<body><div class="auth">
+<div class="auth-hero"><a class="marca" href="/"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="30" height="30">{{ config.APP_NOMBRE }}</a>
+  <div><h1>{{ config.APP_LEMA }}</h1>
+  <p>Sus clientes piden por WhatsApp con el catálogo, las existencias y los precios de Profit Plus, actualizados cada 15 minutos.</p>
+  <ul class="auth-lista"><li>Solo lectura: nada se escribe en Profit Plus</li><li>Verificación en dos pasos obligatoria</li><li>Sin abrir puertos ni exponer SQL Server</li></ul></div>
+  <span class="peq">© Contax® · una marca registrada de Gigadevs Corp</span></div>
+<div class="auth-caja"><div class="auth-form">
+{% for m in get_flashed_messages() %}<div class="msg" role="alert">{{ m }}</div>{% endfor %}
+{% set csrf %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endset %}
+{% if vista == 'login' %}
+  <h2>Iniciar sesión</h2><p class="peq">Ingrese con su usuario o correo.</p>
+  <form method="post" autocomplete="off">{{ csrf }}
+    <label>Usuario o correo<input name="usuario" required maxlength="254" autocomplete="username" autofocus></label>
+    <label>Contraseña<input name="clave" type="password" required maxlength="128" autocomplete="current-password"></label>
+    <button>Entrar</button></form>
+  <p class="peq">¿Olvidó su contraseña? Pida a su administrador (o a Gigadevs) un nuevo enlace de activación.</p>
+{% elif vista == 'activar' %}
+  <h2>Active su cuenta</h2><p class="peq">Usuario: <b>{{ usuario }}</b></p>
+  <p class="peq">Mínimo 12 caracteres y al menos 3 de: minúsculas, mayúsculas, números y símbolos.</p>
+  <form method="post">{{ csrf }}
+    <label>Contraseña<input name="nueva" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+    <label>Repita la contraseña<input name="repetir" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+    <button>Guardar y continuar</button></form>
+{% elif vista == 'enlace_invalido' %}
+  <h2>Enlace no válido</h2><p class="peq">El enlace venció, ya se usó o no existe. Pida uno nuevo a su administrador o a Gigadevs.</p>
+  <div class="enlaces"><a href="{{ url_for('auth.login') }}">← Iniciar sesión</a></div>
+{% elif vista == 'mfa' %}
+  <h2>Verificación en dos pasos</h2><p class="peq">Escriba el código de 6 dígitos de su aplicación autenticadora.</p>
+  <form method="post">{{ csrf }}<label>Código<input name="codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus autocomplete="one-time-code"></label><button>Verificar</button></form>
+  <div class="enlaces"><a href="{{ url_for('auth.login') }}">← Volver</a></div>
+{% elif vista == 'mfa_configurar' %}
+  <h2>Active la verificación en dos pasos</h2>
+  <p class="peq">Escanee el código con Google Authenticator, Microsoft Authenticator u otra aplicación TOTP.</p>
+  <p><span class="qr"><img src="{{ qr }}" alt="Código QR para la aplicación autenticadora" width="200" height="200"></span></p>
+  <p class="peq">¿No puede escanear? Ingrese esta clave manualmente (6 dígitos, 30 s):<br><code>{{ secreto }}</code></p>
+  <form method="post">{{ csrf }}<label>Código actual de 6 dígitos<input name="codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code"></label><button>Activar</button></form>
+{% elif vista == 'cambiar_clave' %}
+  <h2>Cambiar contraseña</h2><p class="peq">Al cambiarla se cierran sus demás sesiones abiertas.</p>
+  <form method="post">{{ csrf }}
+    <label>Contraseña actual<input name="actual" type="password" required autocomplete="current-password"></label>
+    <label>Nueva contraseña<input name="nueva" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+    <button>Guardar</button></form>
+  <div class="enlaces"><a href="/">← Volver</a></div>
+{% endif %}
+</div></div></div></body></html>

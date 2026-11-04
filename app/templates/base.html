@@ -1,0 +1,36 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block titulo %}{{ titulo or 'Panel' }}{% endblock %} · {{ config.APP_NOMBRE }}</title><meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any"><link rel="icon" href="{{ url_for('static', filename='marca/logo-icono.svg') }}" type="image/svg+xml">
+<meta name="theme-color" content="#191919"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"><script src="{{ url_for('static', filename='app.js') }}" defer></script></head>
+<body>{% set u = g.usuario %}{% set ep = request.endpoint %}
+{% macro item(endpoint, texto, icono) %}<a href="{{ url_for(endpoint) }}" class="{{ 'activo' if ep == endpoint or (ep and ep.startswith(endpoint) and ep != 'web.maestro') }}"><span class="ico" aria-hidden="true">{{ icono }}</span>{{ texto }}</a>{% endmacro %}
+<div class="app"><input type="checkbox" id="nav-toggle">
+<aside class="sidebar">
+  <a class="marca" href="/"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="30" height="30">{{ config.APP_NOMBRE }}</a>
+  {% if u and u.rol != 'Maestro' %}
+  <div class="org"><b>{{ g.empresa.razon_social }}</b><span class="chip">{{ u.rol }}</span></div>
+  <nav class="nav-grupo"><span>Atención</span>{{ item('web.inicio', 'Panel', '🏠') }}{{ item('web.pedidos', 'Pedidos', '📦') }}
+    {{ item('web.conversaciones', 'Conversaciones', '💬') }}{{ item('web.presupuestos', 'Presupuestos', '📑') }}</nav>
+  {% if u.rol == 'Administrador' %}<nav class="nav-grupo"><span>Configuración</span>{{ item('web.whatsapp', 'WhatsApp', '🤖') }}
+    {{ item('web.profit', 'Profit Plus', '🔗') }}{{ item('web.usuarios', 'Usuarios', '👥') }}</nav>{% endif %}
+  {% elif u %}
+  <div class="org"><b>Consola Maestro</b><span class="chip">Gigadevs</span></div>
+  <nav class="nav-grupo"><span>Plataforma</span>{{ item('web.maestro', 'Monitoreo y API Profit', '📈') }}{{ item('web.maestro_empresas', 'Empresas', '🏢') }}
+    {{ item('web.maestro_whatsapp', 'Pasarela de WhatsApp', '🤖') }}{{ item('web.maestro_parametros', 'Tasa BCV e IVA', '💱') }}
+    {{ item('web.maestro_usuarios', 'Maestros', '🔑') }}{{ item('web.maestro_bitacora', 'Bitácora', '📜') }}</nav>
+  {% endif %}
+  <div class="pie">{{ config.APP_LEMA }}<br>Solo lectura de Profit Plus · la factura fiscal se emite en Profit<br>Contax® · Gigadevs Corp</div>
+</aside>
+<div class="principal">
+  <header class="topbar">
+    <label for="nav-toggle" class="hamburguesa" aria-label="Menú"><i></i></label><span class="sp"></span>
+    {% if u %}<details class="menu"><summary><span class="avatar">{{ u.username[:2] }}</span>{{ u.username }}</summary><div class="panel">
+      <div class="peq menu-info">{{ u.rol }}{% if u.email %} · {{ u.email }}{% endif %}</div>
+      <a href="{{ url_for('auth.cambiar_clave') }}">Cambiar contraseña</a>
+      <form method="post" action="{{ url_for('auth.salir') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>Cerrar sesión</button></form></div></details>{% endif %}
+  </header>
+  <main class="contenido">
+    {% for m in get_flashed_messages() %}<div class="msg" role="alert">{{ m }}</div>{% endfor %}
+    {% block contenido %}{% endblock %}
+  </main>
+</div></div></body></html>

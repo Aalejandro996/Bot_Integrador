@@ -1,0 +1,21 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ d.titulo }} {{ d.numero }} · {{ e.razon_social }}</title><meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"></head>
+{% macro bs(v) %}{{ '{:,.2f}'.format(v|float).replace(',', 'X').replace('.', ',').replace('X', '.') }}{% endmacro %}
+<body class="doc-publico"><main class="contenido doc-solo">
+{% if interno %}<p class="no-imprimir"><a class="btn sec" href="{{ volver }}">← Volver</a> <button class="btn" type="button" data-imprimir>Imprimir</button></p>{% endif %}
+<article class="documento">
+  <div class="doc-cab"><div><h2>{{ e.razon_social }}</h2><div class="peq">RIF {{ e.rif }}{% if e.direccion %} · {{ e.direccion }}{% endif %}{% if e.telefono %} · Tel. {{ e.telefono }}{% endif %}</div></div>
+    <div class="doc-tipo"><h2>{{ d.titulo|upper }}</h2><span class="ctrl">N° {{ d.numero }}</span><div class="peq">Fecha {{ d.fecha.strftime('%d/%m/%Y') }}{% if d.valido_hasta %} · válido hasta {{ d.valido_hasta.strftime('%d/%m/%Y') }}{% endif %}</div>
+      <div class="peq">Estado: {{ d.estado }}</div></div></div>
+  <div class="doc-bloques"><div><b>Cliente</b><br>{{ d.cliente.nombre }}<br>RIF {{ d.cliente.rif or '—' }}{% if d.cliente.codigo %} · Cód. {{ d.cliente.codigo }}{% endif %}
+    {% if d.cliente.direccion %}<br>{{ d.cliente.direccion }}{% endif %}{% if d.cliente.telefono %}<br>+{{ d.cliente.telefono }}{% endif %}</div>
+    <div><b>Condiciones</b><br>Precios en bolívares{% if d.titulo == 'Orden de venta' %} · despacho según existencia{% endif %}.<br>No es una factura: la factura fiscal se emite aparte.</div></div>
+  <div class="tabla-wrap"><table><thead><tr><th>Código</th><th>Descripción</th><th class="n">Cantidad</th><th class="n">Precio Bs</th><th class="n">Monto Bs</th></tr></thead><tbody>
+  {% for l in d.lineas %}<tr><td>{{ l.codigo }}</td><td>{{ l.descripcion }}{% if l.alicuota == 'E' %} (E){% endif %}</td><td class="n">{{ l.cantidad }}</td><td class="n">{{ bs(l.precio) }}</td><td class="n">{{ bs(l.monto) }}</td></tr>
+  {% else %}<tr><td colspan="5" class="peq">Sin productos</td></tr>{% endfor %}</tbody></table></div>
+  <table class="pares doc-totales"><tr><th>Exento</th><td class="n">{{ bs(d.exento) }}</td></tr><tr><th>Base imponible</th><td class="n">{{ bs(d.base) }}</td></tr>
+    <tr><th>IVA</th><td class="n">{{ bs(d.iva) }}</td></tr><tr><th><b>Total Bs</b></th><td class="n"><b>{{ bs(d.total) }}</b></td></tr></table>
+  {% if d.nota %}<p class="peq">{{ d.nota }}</p>{% endif %}
+  <p class="peq">(E) exento de IVA. Documento generado por el bot de WhatsApp de {{ e.razon_social }}.</p>
+</article></main></body></html>
