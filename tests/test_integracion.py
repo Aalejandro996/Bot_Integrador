@@ -74,26 +74,34 @@ def _enlace(r):
 
 def test_recorrido_completo(app):
     from app import totp
-    import pedyra_conector as CP
+    import surtia_conector as CP
     # --- el primer Maestro: inicializar escribe su enlace en el log
     from app.extensions import db
     from app.models import Usuario
     from app.seguridad import nuevo_enlace_activacion
     with app.app_context(), app.test_request_context(base_url="https://bot.test"):
-        u = Usuario(username="gigadevs", rol="Maestro"); db.session.add(u); db.session.flush(); enlace = nuevo_enlace_activacion(u); db.session.commit()
+        u = Usuario(username="gigadevs", email="soporte@gigadevs.test", rol="Maestro"); db.session.add(u); db.session.flush(); enlace = nuevo_enlace_activacion(u); db.session.commit()
     root, sec_root = _activar(app, enlace)
+    from app import correo
+    asuntos = lambda para: [m["Subject"] for m in correo.ENVIADOS if m["To"] == para]
+    texto_de = lambda para: [m.get_content() for m in correo.ENVIADOS if m["To"] == para][-1]
+    assert "Verificación en dos pasos activada · Surtia" in asuntos("soporte@gigadevs.test")      # alerta de seguridad
     assert "Monitoreo del bot" in root.get("/maestro").get_data(as_text=True)
     anon = app.test_client()
     assert anon.get("/maestro").status_code == 302 and anon.get("/pedidos").status_code == 302
     # login con clave + MFA; bloqueo tras 5 fallos
     for _ in range(5): anon.post("/login", data={"usuario": "gigadevs", "clave": "mala"})
     assert "bloqueada" in anon.post("/login", data={"usuario": "gigadevs", "clave": CLAVE}).get_data(as_text=True)
+    assert "Cuenta bloqueada por intentos fallidos · Surtia" in asuntos("soporte@gigadevs.test")
     with app.app_context():
         db.session.execute(db.text("UPDATE usuarios SET bloqueado_hasta = NULL")); db.session.commit()
     # --- empresa y su administrador
     r = root.post("/maestro/empresas", data={"accion": "crear", "razon_social": "General de Suministros Orituco, C.A.", "rif": "j123456780",
-                                             "direccion": "Altagracia de Orituco", "username": "orituco"}, follow_redirects=True)
+                                             "direccion": "Altagracia de Orituco", "username": "orituco", "email": "admin@orituco.test",
+                                             "correo": "ventas@orituco.test"}, follow_redirects=True)
     assert "Empresa creada" in r.get_data(as_text=True)
+    assert "Active su cuenta · Surtia" in asuntos("admin@orituco.test") and _enlace(r) in texto_de("admin@orituco.test")   # el enlace llega por correo
+    assert "General de Suministros Orituco" in texto_de("admin@orituco.test")
     adm, sec_adm = _activar(app, _enlace(r))
     eid = _uno(app, "SELECT id FROM empresas WHERE rif='J-12345678-0'")
     assert "Vincular el WhatsApp de la empresa" in adm.get("/").get_data(as_text=True)
@@ -105,7 +113,7 @@ def test_recorrido_completo(app):
         assert cab.get("X-API-Key") == "owa_propia"
         ruta, d = url.split("/api", 1)[1], (json.loads(cuerpo) if cuerpo else None)
         if (metodo, ruta) == ("GET", "/sessions"):
-            return 200, json.dumps([{"id": SID, "name": f"pedyra-e{eid}-abcd", "status": pas["estado"], "phone": pas["telefono"]}]).encode()
+            return 200, json.dumps([{"id": SID, "name": f"surtia-e{eid}-abcd", "status": pas["estado"], "phone": pas["telefono"]}]).encode()
         if (metodo, ruta) == ("POST", "/sessions"): return 201, json.dumps({"id": SID}).encode()
         if ruta == f"/sessions/{SID}/webhooks": pas["webhook"] = d; return 201, b'{"id":"w1"}'
         if ruta == f"/sessions/{SID}/start": pas["estado"] = "qr_ready"; return 200, b"{}"
@@ -139,12 +147,12 @@ def test_recorrido_completo(app):
     import configparser
     ini = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=(";",))
     ini.read_string(adm.get("/profit/descargar/configuracion").get_data(as_text=True))
-    cid, cl = ini["pedyra"]["conector"], ini["pedyra"]["clave"]
-    assert ini["pedyra"]["url"] == "https://bot.test" and b"saStockAlmacen" in adm.get("/profit/descargar/usuario-sql").data
+    cid, cl = ini["surtia"]["conector"], ini["surtia"]["clave"]
+    assert ini["surtia"]["url"] == "https://bot.test" and b"saStockAlmacen" in adm.get("/profit/descargar/usuario-sql").data
     def conector(ruta, datos, clave_=None, fecha=None):
         cuerpo = gzip.compress(json.dumps(datos, default=str).encode()); f = fecha or int(time.time())
         return anon.post("/api/profit/v1/" + ruta, data=cuerpo, content_type="application/json",
-                         headers={"X-Pedyra-Conector": cid, "Content-Encoding": "gzip", "X-Pedyra-Fecha": str(f), "X-Pedyra-Firma": CP.firmar(clave_ or cl, f, cuerpo)})
+                         headers={"X-Surtia-Conector": cid, "Content-Encoding": "gzip", "X-Surtia-Fecha": str(f), "X-Surtia-Firma": CP.firmar(clave_ or cl, f, cuerpo)})
     assert conector("ping", {}, clave_="otra").status_code == 401 and conector("ping", {}, fecha=int(time.time()) - 900).status_code == 401
     cfg = conector("ping", {"version": "1.0.0", "equipo": "SRV-PROFIT"}).get_json()["config"]
     foto = CP.construir_foto([("01", "PRINCIPAL", False), ("09", "MERMAS", True)], [("01", "DETAL")],
@@ -173,6 +181,12 @@ def test_recorrido_completo(app):
     msg(7, "LEC-01 2"); msg(8, "6"); assert "Presupuesto N° 1" in ultimo() and "120,00" in ultimo()
     msg(9, "ACEPTO 1"); assert "aceptado" in ultimo()
     msg(10, "5"); assert _uno(app, "SELECT atencion FROM contactos WHERE telefono='584147778899'") is True
+    # avisos por correo a la empresa (correo de la empresa + administradores/operadores), con enlace al panel
+    for para in ("ventas@orituco.test", "admin@orituco.test"):
+        a = asuntos(para)
+        assert "Pedido N° 1 por WhatsApp · Surtia" in a and "Presupuesto N° 1 aceptado · Surtia" in a and "Un cliente pide hablar con una persona · Surtia" in a, a
+    assert "Bs 256,50" in [m.get_content() for m in correo.ENVIADOS if "Pedido N° 1" in m["Subject"]][0]
+    assert not [m for m in correo.ENVIADOS if "Pedido" in m["Subject"] and m["To"] == "soporte@gigadevs.test"]   # el Maestro no ve pedidos
     # orden de compra en PDF → orden de venta con lo disponible
     from app import servicios as SV
     pdf = _pdf(["ORDEN DE COMPRA N° 9001", "COMERCIAL ORITUCO CA RIF J-11111111-1", "HAR-01 HARINA PAN 1KG 100", "LEC-01 1"])
@@ -204,6 +218,9 @@ def test_recorrido_completo(app):
     r = adm.post("/usuarios", data={"accion": "invitar", "username": "vendedor1", "rol": "Operador"}, follow_redirects=True)
     op, _ = _activar(app, _enlace(r))
     assert op.get("/pedidos").status_code == 200 and op.get("/profit").status_code == 403 and op.get("/whatsapp").status_code == 403
+    # el WhatsApp se cae: avisan a la empresa y al Maestro
+    aviso("session.status", {"sessionId": SID, "status": "disconnected"})
+    assert "El WhatsApp del bot se desconectó · Surtia" in asuntos("admin@orituco.test") and "El WhatsApp del bot se desconectó · Surtia" in asuntos("soporte@gigadevs.test")
     # suspender la empresa: nadie entra y el bot no atiende
     root.post("/maestro/empresas", data={"accion": "suspender", "eid": eid})
     assert adm.get("/pedidos").status_code == 302 and aviso("message.received", {"id": "x9", "from": "584147778899@c.us", "body": "hola"}).get_json()["ignorado"] == "empresa"

@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from flask import current_app, flash, g, redirect, request, url_for
 from sqlalchemy import func, select
 
+from .. import notificaciones as N
 from .. import openwa as OW
 from .. import servicios as SV
 from ..extensions import db
@@ -79,14 +80,14 @@ def maestro():
                         f["p"].n_articulos if f["p"] else "—", f"{f['p'].agente_equipo or '—'} · {f['p'].agente_version or '—'}" if f["p"] else "—"]) for f in filas])),
         dict(titulo="API del conector de Profit Plus", abierto=True,
              nota="El conector corre en el servidor de Profit de cada cliente y llama a esta URL por HTTPS (solo salida; el cliente no abre puertos). "
-                  "Cada empresa tiene su ID y su clave, que descarga en pedyra_conector.ini. Pausar la API detiene la sincronización: los bots siguen con la última foto.",
+                  "Cada empresa tiene su ID y su clave, que descarga en surtia_conector.ini. Pausar la API detiene la sincronización: los bots siguen con la última foto.",
              form=dict(action=request.path, boton="Guardar", campos=[oculto("guardar"),
                        campo("activa", "API", "select", opciones=[("1", "Activa"), ("0", "Pausada")], valor="1" if (p is None or p.activa) else "0"),
                        campo("url_publica", "URL pública que usan los conectores", req=False, valor=p.url_publica if p else None, ph=current_app.config["APP_BASE_URL"]),
                        campo("intervalo_min", "Cada cuántos minutos sincronizan", "number", valor=intervalo),
                        campo("max_articulos", "Máximo de artículos por empresa", "number", valor=p.max_articulos if p else 20000),
                        campo("max_clientes", "Máximo de clientes por empresa", "number", valor=p.max_clientes if p else 50000),
-                       campo("url_instalador", "Descarga del instalador pedyra_conector.exe (https://…)", req=False, valor=p.url_instalador if p else None)]))])
+                       campo("url_instalador", "Descarga del instalador surtia_conector.exe (https://…)", req=False, valor=p.url_instalador if p else None)]))])
 
 
 @bp.route("/maestro/empresas", methods=["GET", "POST"])
@@ -111,7 +112,7 @@ def maestro_empresas():
                 db.session.add(u); db.session.flush()
                 enlace = nuevo_enlace_activacion(u)
                 registrar("EMPRESA_CREADA", f"{e.razon_social} {e.rif} admin={u.username}", empresa_id=e.id); db.session.commit()
-                flash(f"Empresa creada. Envíe este enlace al administrador {u.username} (72 horas, un solo uso): {enlace}")
+                flash("Empresa creada. " + N.enlace_activacion(u, enlace, empresa=e)[1])
             elif a in ("suspender", "reactivar", "reenlace"):
                 e = db.session.get(Empresa, int(F["eid"]))
                 if e is None: raise ValueError("Empresa inexistente")
@@ -119,10 +120,10 @@ def maestro_empresas():
                     u = db.session.execute(select(Usuario).where(Usuario.empresa_id == e.id, Usuario.rol == "Administrador").order_by(Usuario.id)).scalars().first()
                     if u is None: raise ValueError("La empresa no tiene administrador")
                     enlace = nuevo_enlace_activacion(u); u.sesion_version += 1
-                    flash(f"Nuevo enlace para {u.username} (72 horas; reemplaza su clave y su MFA): {enlace}")
                 else:
                     e.activa = a == "reactivar"
                 registrar("EMPRESA_" + a.upper(), e.razon_social, empresa_id=e.id); db.session.commit()
+                if a == "reenlace": flash(N.enlace_activacion(u, enlace, "reenlace", empresa=e)[1] + " Reemplaza su clave y su MFA.")
             else: raise ValueError("Acción inválida")
         intentar(hacer, "Listo")
         return redirect(request.url)
@@ -166,13 +167,13 @@ def maestro_whatsapp():
         try: sesiones = ow.sesiones()
         except ErrorWhatsapp as e: flash(f"No se pudo leer la pasarela: {e}")
     nombres = {e.id: e.razon_social for e in db.session.execute(select(Empresa)).scalars()}
-    empresa = lambda n: nombres.get(int(m.group(1)), f"Empresa {m.group(1)}") if (m := re.match(r"pedyra-e(\d+)-", str(n or ""))) else "— (creada fuera del bot)"
+    empresa = lambda n: nombres.get(int(m.group(1)), f"Empresa {m.group(1)}") if (m := re.match(r"(?:surtia|pedyra)-e(\d+)-", str(n or ""))) else "— (creada fuera del bot)"
     origen = "consola" if p else ("variables OPENWA_URL / OPENWA_API_KEY" if ow else "sin configurar")
     return pagina("Pasarela de WhatsApp", [
         dict(kpis=[("Pasarela", ("Activa" if (p.activa if p else True) else "Pausada") if ow or p else "Sin configurar"), ("Origen", origen), ("Sesiones", len(sesiones)),
                    ("Conectadas", sum(x.get("status") == "ready" for x in sesiones))]),
         dict(titulo="Pasarela OpenWA del bot", abierto=True,
-             nota="Pasarela propia de este bot (no la de Pedyra): cada empresa tiene su sesión y vincula SU número con el QR. La clave de administrador la "
+             nota="Pasarela propia de este bot (no la de Surtia): cada empresa tiene su sesión y vincula SU número con el QR. La clave de administrador la "
                   "genera OpenWA en su primer arranque (aparece en su log y en /app/data/.api-key). Se guarda cifrada; déjela vacía para conservar la actual. "
                   "Antes de guardar se comprueba que la URL y la clave funcionen.",
              form=dict(action=request.path, boton="Verificar y guardar", campos=[campo("url", "URL de la pasarela", valor=p.url if p else current_app.config.get("OPENWA_URL")),
@@ -241,7 +242,7 @@ def maestro_usuarios():
             if db.session.query(Usuario).filter(func.lower(Usuario.username) == nombre).first(): raise ValueError("Ese usuario ya existe")
             u = Usuario(username=nombre, email=(F.get("email") or "").strip()[:254] or None, rol="Maestro"); db.session.add(u); db.session.flush()
             enlace = nuevo_enlace_activacion(u); registrar("MAESTRO_INVITADO", nombre); db.session.commit()
-            flash(f"Enlace de activación para {nombre} (72 horas, un uso): {enlace}")
+            flash(N.enlace_activacion(u, enlace)[1])
         intentar(hacer, "Listo")
         return redirect(request.url)
     us = db.session.execute(select(Usuario).where(Usuario.rol == "Maestro").order_by(Usuario.username)).scalars()

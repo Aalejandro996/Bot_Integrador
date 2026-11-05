@@ -19,8 +19,17 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
     FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
     APP_BASE_URL = (os.environ.get("APP_BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "http://127.0.0.1:5000").rstrip("/")
-    APP_NOMBRE = os.environ.get("APP_NOMBRE", "Pedyra")
-    APP_LEMA = "Bot de WhatsApp conectado a Profit Plus"
+    APP_NOMBRE = os.environ.get("APP_NOMBRE", "Surtia")
+    APP_LEMA = os.environ.get("APP_LEMA", "Pedidos por WhatsApp con su inventario de Profit Plus")
+    # Correo (enlaces de activación, alertas de seguridad, avisos de pedidos). Igual que Contax: Brevo, SMTP o consola.
+    BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
+    MAIL_BACKEND = os.environ.get("MAIL_BACKEND", "brevo" if os.environ.get("BREVO_API_KEY") else "console")   # brevo | smtp | console
+    MAIL_FROM = os.environ.get("MAIL_FROM", "Surtia <aalejandro996@icloud.com>")
+    SMTP_HOST = os.environ.get("SMTP_HOST", "")
+    SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+    SMTP_USER = os.environ.get("SMTP_USER", "")
+    SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
+    SMTP_SSL = os.environ.get("SMTP_SSL", "0") == "1"
     # Pasarela OpenWA propia de este bot: si el Maestro no la configuró en la consola, se usa la de estas variables
     OPENWA_URL = os.environ.get("OPENWA_URL", "")
     if OPENWA_URL and "://" not in OPENWA_URL: OPENWA_URL = "http://" + OPENWA_URL      # Render da «host:puerto» de la red privada

@@ -1,13 +1,13 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ {'login':'Iniciar sesión','activar':'Activar cuenta','enlace_invalido':'Enlace no válido','cambiar_clave':'Cambiar contraseña','mfa':'Verificación en dos pasos','mfa_configurar':'Activar verificación'}[vista] }} · {{ config.APP_NOMBRE }}</title>
-<meta name="robots" content="noindex, nofollow"><link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any">
-<meta name="theme-color" content="#0F1B2D"><link rel="apple-touch-icon" href="{{ url_for('static', filename='marca/apple-touch-icon.png') }}"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"></head>
+<meta name="robots" content="noindex, nofollow"><link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any"><link rel="icon" href="{{ url_for('static', filename='marca/logo-icono.svg') }}" type="image/svg+xml">
+<meta name="theme-color" content="#0B2530"><link rel="apple-touch-icon" href="{{ url_for('static', filename='marca/apple-touch-icon.png') }}"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"></head>
 <body><div class="auth">
-<div class="auth-hero"><a class="marca" href="/"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="34" height="34"><span>pedyra<sup>™</sup></span></a>
-  <div><h1>{{ config.APP_LEMA }}</h1>
+<div class="auth-hero"><a class="marca" href="/"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="34" height="34"><span>surt<em>i</em>a<sup>™</sup></span></a>
+  <div><h1>Pedidos por <em>WhatsApp</em>, con el inventario de Profit Plus.</h1>
   <p>Sus clientes piden por WhatsApp con el catálogo, las existencias y los precios de Profit Plus, actualizados cada 15 minutos.</p>
-  <ul class="auth-lista"><li>Solo lectura: nada se escribe en Profit Plus</li><li>Verificación en dos pasos obligatoria</li><li>Sin abrir puertos ni exponer SQL Server</li></ul></div>
-  <span class="peq">Pedyra™ es una marca de Gigadevs Corp</span></div>
+  <ul class="auth-lista"><li>Solo lectura: nada se escribe en Profit Plus</li><li>Verificación en dos pasos obligatoria</li><li>Sin abrir puertos ni exponer SQL Server</li><li>Avisos por correo de pedidos y de la seguridad de su cuenta</li></ul></div>
+  <span class="peq">Surtia™ es una marca de Gigadevs Corp</span></div>
 <div class="auth-caja"><div class="auth-form">
 {% for m in get_flashed_messages() %}<div class="msg" role="alert">{{ m }}</div>{% endfor %}
 {% set csrf %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endset %}

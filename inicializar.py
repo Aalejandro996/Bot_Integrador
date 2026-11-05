@@ -1,5 +1,6 @@
 """Crea o actualiza las tablas y, la primera vez, el Maestro de Gigadevs (variables MAESTRO_USUARIO y MAESTRO_EMAIL).
-Mientras el Maestro no active su cuenta, cada despliegue escribe en el log un enlace nuevo de activación (72 h, un uso).
+Mientras el Maestro no active su cuenta, cada despliegue genera un enlace nuevo de activación (72 h, un uso): se envía a
+MAESTRO_EMAIL si el correo está configurado (Brevo o SMTP) y, si no, se escribe en el log.
 Uso: python inicializar.py   (Render lo ejecuta antes de arrancar)"""
 import sys
 
@@ -21,8 +22,13 @@ def main():
             u = db.session.query(Usuario).filter_by(username=nombre).one_or_none()
             if u is None:
                 u = Usuario(username=nombre, email=app.config.get("MAESTRO_EMAIL") or None, rol="Maestro"); db.session.add(u); db.session.flush()
+            if not u.email and app.config.get("MAESTRO_EMAIL"): u.email = app.config["MAESTRO_EMAIL"].strip()[:254]
             if not u.password_hash:
-                print(f"[inicializar] Active el Maestro «{u.username}» con este enlace (72 h, un uso): {nuevo_enlace_activacion(u)}", flush=True)
+                enlace = nuevo_enlace_activacion(u); db.session.commit()
+                from app import notificaciones as N
+                enviado, texto = N.enlace_activacion(u, enlace)
+                print(f"[inicializar] Maestro «{u.username}»: " + (texto if enviado and texto.startswith("Enviamos") else
+                      f"active la cuenta con este enlace (72 h, un uso): {enlace}"), flush=True)
         db.session.commit()
         print("[inicializar] Base de datos lista.", flush=True)
 

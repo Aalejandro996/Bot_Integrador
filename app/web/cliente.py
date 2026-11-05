@@ -7,6 +7,7 @@ from pathlib import Path
 from flask import Response, abort, current_app, flash, g, redirect, render_template, request, url_for
 from sqlalchemy import func, select
 
+from .. import notificaciones as N
 from .. import openwa as OW
 from .. import servicios as SV
 from ..extensions import db
@@ -19,7 +20,7 @@ from . import F, bp, campo, hora, intentar, oculto, pagina
 CLIENTE = ("Administrador", "Operador")
 CARPETA_CONECTOR = Path(__file__).resolve().parents[2] / "conector_profit"
 # Sin extensión en la URL (.py, .sql, .ini): así ningún filtro de rastreos las confunde con un escaneo.
-DESCARGAS = {"conector": ("pedyra_conector.py", "text/x-python"), "usuario-sql": ("crear_usuario_lectura.sql", "text/plain"),
+DESCARGAS = {"conector": ("surtia_conector.py", "text/x-python"), "usuario-sql": ("crear_usuario_lectura.sql", "text/plain"),
              "instrucciones": ("LEAME.md", "text/markdown"), "requisitos": ("requirements.txt", "text/plain")}
 
 
@@ -170,7 +171,7 @@ def profit():
             else: raise ValueError("Acción inválida")
             db.session.commit()
         intentar(hacer, {"activar": "Integración activada: descargue la configuración del conector", "guardar": "Configuración guardada: el conector la aplicará en su próxima lectura",
-                         "rotar": "Clave renovada: descargue de nuevo pedyra_conector.ini y reemplácelo en el servidor de Profit"}.get(a, "Hecho"))
+                         "rotar": "Clave renovada: descargue de nuevo surtia_conector.ini y reemplácelo en el servidor de Profit"}.get(a, "Hecho"))
         return redirect(request.url)
     if plat is None or not plat.activa:
         return pagina("Profit Plus", [dict(titulo="Integración con Profit Plus", nota="La integración todavía no está habilitada. Contacte a soporte de Gigadevs.")])
@@ -200,14 +201,14 @@ def profit():
                      valor="1" if c.solo_con_existencia else "0")]
     secs.append(dict(titulo="Qué toma el bot de Profit", abierto=True, nota="Los almacenes y listas aparecen aquí cuando el conector se conecta por primera vez.",
                      form=dict(action=request.path, boton="Guardar", campos=campos)))
-    enlaces = [dict(url=url_for("web.profit_descarga", archivo="configuracion"), texto="⬇ pedyra_conector.ini (configuración con su clave)")]
+    enlaces = [dict(url=url_for("web.profit_descarga", archivo="configuracion"), texto="⬇ surtia_conector.ini (configuración con su clave)")]
     enlaces += [dict(url=url_for("web.profit_descarga", archivo=k), texto="⬇ " + v[0]) for k, v in DESCARGAS.items()]
-    if plat.url_instalador: enlaces.insert(0, dict(url=plat.url_instalador, texto="⬇ Instalador pedyra_conector.exe (Windows)"))
+    if plat.url_instalador: enlaces.insert(0, dict(url=plat.url_instalador, texto="⬇ Instalador surtia_conector.exe (Windows)"))
     secs.append(dict(titulo="Instalar el conector en el servidor de Profit Plus", abierto=True, enlaces=enlaces,
-                     nota="1) En SQL Server ejecute crear_usuario_lectura.sql (usuario que solo puede LEER). 2) Copie pedyra_conector.exe y pedyra_conector.ini en "
-                          "C:\\Pedyra. 3) Complete la sección [sqlserver] del .ini. 4) Ejecute «pedyra_conector --probar». 5) «pedyra_conector --instalar-tarea» "
+                     nota="1) En SQL Server ejecute crear_usuario_lectura.sql (usuario que solo puede LEER). 2) Copie surtia_conector.exe y surtia_conector.ini en "
+                          "C:\\Surtia. 3) Complete la sección [sqlserver] del .ini. 4) Ejecute «surtia_conector --probar». 5) «surtia_conector --instalar-tarea» "
                           f"(arranca con Windows y lee cada {plat.intervalo_min} minutos). Detalles en LEAME.md."))
-    secs.append(dict(titulo="Renovar la clave del conector", nota="Úsela si cree que pedyra_conector.ini se filtró. El conector deja de funcionar hasta que reemplace el archivo.",
+    secs.append(dict(titulo="Renovar la clave del conector", nota="Úsela si cree que surtia_conector.ini se filtró. El conector deja de funcionar hasta que reemplace el archivo.",
                      form=dict(action=request.path, boton="Renovar clave", boton_clase="sec", confirmar="¿Renovar la clave? El conector actual dejará de sincronizar.", campos=[oculto("rotar")])))
     arts = db.session.execute(select(ProfitArticulo).where(ProfitArticulo.empresa_id == eid).order_by(ProfitArticulo.codigo).limit(25)).scalars().all()
     if arts:
@@ -229,7 +230,7 @@ def profit_descarga(archivo):
     if archivo == "configuracion":
         registrar("PROFIT_INI_DESCARGADO", ""); db.session.commit()
         return Response(SV.conector_ini(c), mimetype="text/plain; charset=utf-8",
-                        headers={"Content-Disposition": "attachment; filename=pedyra_conector.ini", "Cache-Control": "no-store"})
+                        headers={"Content-Disposition": "attachment; filename=surtia_conector.ini", "Cache-Control": "no-store"})
     if archivo not in DESCARGAS: abort(404)
     nombre, tipo = DESCARGAS[archivo]
     return Response((CARPETA_CONECTOR / nombre).read_bytes(), mimetype=tipo + "; charset=utf-8", headers={"Content-Disposition": f"attachment; filename={nombre}"})
@@ -412,15 +413,15 @@ def usuarios():
                 db.session.add(u); db.session.flush()
                 enlace = nuevo_enlace_activacion(u)
                 registrar("USUARIO_INVITADO", f"{u.username} rol={u.rol}"); db.session.commit()
-                flash(f"Envíele este enlace a {u.username} (vale 72 horas, un solo uso): {enlace}")
+                flash(N.enlace_activacion(u, enlace, empresa=g.empresa)[1])
             elif a in ("desactivar", "reactivar", "reenlace"):
                 u = db.session.get(Usuario, int(F["uid"]))
                 if u is None or u.empresa_id != eid or u.id == g.usuario.id: raise ValueError("Usuario inválido")
                 if a == "reenlace":
                     enlace = nuevo_enlace_activacion(u); u.sesion_version += 1
-                    flash(f"Nuevo enlace de activación para {u.username} (72 horas): {enlace}")
                 else: u.activo = a == "reactivar"; u.sesion_version += 1
                 registrar("USUARIO_" + a.upper(), u.username); db.session.commit()
+                if a == "reenlace": flash(N.enlace_activacion(u, enlace, "reenlace", empresa=g.empresa)[1])
             else: raise ValueError("Acción inválida")
         intentar(hacer, "Listo")
         return redirect(request.url)

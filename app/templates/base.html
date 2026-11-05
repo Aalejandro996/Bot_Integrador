@@ -1,12 +1,12 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block titulo %}{{ titulo or 'Panel' }}{% endblock %} · {{ config.APP_NOMBRE }}</title><meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any"><link rel="icon" href="{{ url_for('static', filename='marca/logo-icono.svg') }}" type="image/svg+xml">
-<meta name="theme-color" content="#0F1B2D"><link rel="apple-touch-icon" href="{{ url_for('static', filename='marca/apple-touch-icon.png') }}"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"><script src="{{ url_for('static', filename='app.js') }}" defer></script></head>
+<meta name="theme-color" content="#0B2530"><link rel="apple-touch-icon" href="{{ url_for('static', filename='marca/apple-touch-icon.png') }}"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"><script src="{{ url_for('static', filename='app.js') }}" defer></script></head>
 <body>{% set u = g.usuario %}{% set ep = request.endpoint %}
 {% macro item(endpoint, texto, icono) %}<a href="{{ url_for(endpoint) }}" class="{{ 'activo' if ep == endpoint or (ep and ep.startswith(endpoint) and ep != 'web.maestro') }}"><span class="ico" aria-hidden="true">{{ icono }}</span>{{ texto }}</a>{% endmacro %}
 <div class="app"><input type="checkbox" id="nav-toggle">
 <aside class="sidebar">
-  <a class="marca" href="/"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="34" height="34"><span>pedyra<sup>™</sup></span></a>
+  <a class="marca" href="/"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="34" height="34"><span>surt<em>i</em>a<sup>™</sup></span></a>
   {% if u and u.rol != 'Maestro' %}
   <div class="org"><b>{{ g.empresa.razon_social }}</b><span class="chip">{{ u.rol }}</span></div>
   <nav class="nav-grupo"><span>Atención</span>{{ item('web.inicio', 'Panel', '🏠') }}{{ item('web.pedidos', 'Pedidos', '📦') }}
@@ -19,12 +19,12 @@
     {{ item('web.maestro_whatsapp', 'Pasarela de WhatsApp', '🤖') }}{{ item('web.maestro_parametros', 'Tasa BCV e IVA', '💱') }}
     {{ item('web.maestro_usuarios', 'Maestros', '🔑') }}{{ item('web.maestro_bitacora', 'Bitácora', '📜') }}</nav>
   {% endif %}
-  <div class="pie">{{ config.APP_LEMA }}<br>Solo lectura de Profit Plus · la factura fiscal se emite en Profit<br>Pedyra™ · Gigadevs Corp</div>
+  <div class="pie">{{ config.APP_LEMA }}<br>Solo lectura de Profit Plus · la factura fiscal se emite en Profit<br>Surtia™ · Gigadevs Corp</div>
 </aside>
 <div class="principal">
   <header class="topbar">
-    <label for="nav-toggle" class="hamburguesa" aria-label="Menú"><i></i></label><span class="sp"></span>
-    {% if u %}<details class="menu"><summary><span class="avatar">{{ u.username[:2] }}</span>{{ u.username }}</summary><div class="panel">
+    <label for="nav-toggle" class="hamburguesa" aria-label="Abrir o cerrar el menú"><i></i></label><span class="sp"></span>
+    {% if u %}<details class="menu"><summary><span class="avatar" aria-hidden="true">{{ u.username[:2] }}</span><span class="quien">{{ u.username }}</span></summary><div class="panel">
       <div class="peq menu-info">{{ u.rol }}{% if u.email %} · {{ u.email }}{% endif %}</div>
       <a href="{{ url_for('auth.cambiar_clave') }}">Cambiar contraseña</a>
       <form method="post" action="{{ url_for('auth.salir') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>Cerrar sesión</button></form></div></details>{% endif %}

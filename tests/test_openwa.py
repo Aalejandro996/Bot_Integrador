@@ -40,7 +40,7 @@ def test_sesion_qr_envio_y_cierre():
                ("POST", f"/sessions/{SID}/logout"): (400, {"message": "Session not running"}),
                ("DELETE", f"/sessions/{SID}"): (204, b"")})
     ow = OW.Pasarela("https://wa.test", "owa_k1_clave", f)
-    assert ow.crear_sesion(OW.nombre_sesion(7, "Ab-12")) == SID and f.llamadas[0][2] == {"name": "pedyra-e7-ab12"}
+    assert ow.crear_sesion(OW.nombre_sesion(7, "Ab-12")) == SID and f.llamadas[0][2] == {"name": "surtia-e7-ab12"}
     ow.registrar_webhook(SID, "https://erp.test/wa/k", "s" * 32)
     assert f.llamadas[-1][2]["events"][0] == "message.received" and f.llamadas[-1][2]["secret"] == "s" * 32
     ow.iniciar(SID)                                                                  # «already started» no es error

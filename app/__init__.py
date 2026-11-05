@@ -1,4 +1,4 @@
-"""Pedyra · Profit Plus — bot de WhatsApp conectado (solo lectura) a Profit Plus. Gigadevs Corp."""
+"""Surtia™ · Profit Plus — bot de WhatsApp conectado (solo lectura) a Profit Plus. Gigadevs Corp."""
 import logging
 import secrets
 
@@ -33,6 +33,9 @@ def create_app(config=None):
 
     @app.after_request
     def _cabeceras(r):
+        from . import notificaciones
+        if r.status_code < 400: notificaciones.despachar()       # avisos por correo: solo si la operación se guardó
+        else: notificaciones.descartar()
         r.headers.setdefault("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
                                                          "connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'")
         r.headers["X-Content-Type-Options"] = "nosniff"

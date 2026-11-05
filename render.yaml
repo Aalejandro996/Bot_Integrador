@@ -8,7 +8,7 @@ projects:
         services:
           # ------------------------------------------------------------- app web (clientes + consola Maestro + API del conector)
           - type: web
-            name: bot-integrador
+            name: bot_integrador
             runtime: python
             plan: starter
             region: ohio
@@ -27,16 +27,25 @@ projects:
                 generateValue: true
               - key: DATABASE_URL
                 fromDatabase:
-                  name: pedyra-db
+                  name: bot-profit-db
                   property: connectionString
               - key: OPENWA_URL                  # pasarela PROPIA por la red privada (host:puerto)
                 fromService:
                   type: pserv
-                  name: pedyra-whatsapp
+                  name: bot-whatsapp
                   property: hostport
               - key: MAESTRO_USUARIO             # su usuario de Gigadevs: el enlace de activación sale en el log del primer despliegue
                 sync: false
-              - key: MAESTRO_EMAIL
+              - key: MAESTRO_EMAIL               # recibe el enlace de activación y las alertas de la plataforma
+                sync: false
+              # ---- correo (enlaces de activación, alertas de seguridad y avisos de pedidos), igual que Contax
+              - key: APP_NOMBRE
+                value: Surtia
+              - key: MAIL_BACKEND                # brevo (API transaccional) | smtp | console (solo desarrollo)
+                value: brevo
+              - key: MAIL_FROM                   # remitente verificado en Brevo
+                value: Surtia <aalejandro996@icloud.com>
+              - key: BREVO_API_KEY               # se pega a mano en Render; nunca en el repositorio
                 sync: false
 
           # ------------------------------------------------------------- pasarela de WhatsApp PROPIA (OpenWA), privada
@@ -44,14 +53,14 @@ projects:
           # La clave de administrador sale en su primer log y en /app/data/.api-key: el Maestro la pega en Consola → Pasarela de WhatsApp.
           # Imagen fijada por digest (la versión probada); para actualizar, cambie el digest a propósito.
           - type: pserv
-            name: pedyra-whatsapp
+            name: bot-whatsapp
             runtime: image
             image:
               url: ghcr.io/rmyndharis/openwa@sha256:1a2d0c393a7c8a629b0b18cdb5125d9be59192480c02d56a022c249a66af9068
             plan: starter
             region: ohio
             disk:                                # sesiones vinculadas: sobreviven a reinicios y despliegues
-              name: pedyra-whatsapp-datos
+              name: bot-whatsapp-datos
               mountPath: /app/data
               sizeGB: 1
             envVars:
@@ -67,7 +76,7 @@ projects:
                 value: "false"
 
         databases:
-          - name: pedyra-db
+          - name: bot-profit-db
             plan: basic-256mb
             region: ohio
             databaseName: bot_profit

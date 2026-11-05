@@ -5,7 +5,7 @@ from urllib.parse import unquote, urlsplit
 import segno
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, session, url_for
 
-from .. import totp
+from .. import notificaciones as N, totp
 from ..extensions import db, limiter
 from ..models import Usuario, ahora
 from ..seguridad import (BLOQUEO_MIN, MAX_INTENTOS, hashear, iniciar_sesion, politica_clave, registrar, requiere, usuario_por_token,
@@ -38,7 +38,7 @@ def login():
                 u.intentos_fallidos += 1
                 if u.intentos_fallidos >= MAX_INTENTOS:
                     u.bloqueado_hasta, u.intentos_fallidos = ahora() + timedelta(minutes=BLOQUEO_MIN), 0
-                    registrar("BLOQUEO_LOGIN", "", empresa_id=u.empresa_id, usuario=u.username)
+                    registrar("BLOQUEO_LOGIN", "", empresa_id=u.empresa_id, usuario=u.username); N.seguridad(u, "bloqueo")
                 db.session.commit()
             flash("Usuario o contraseña incorrectos."); return _vista("login")
         session.clear(); session.update(pre=u.id, pre_t=ahora().timestamp())
@@ -79,11 +79,12 @@ def mfa():
         c = totp.verificar(sec, (request.form.get("codigo") or "").strip(), u.mfa_ultimo_contador)
         if c is None:
             u.intentos_fallidos += 1
-            if u.intentos_fallidos >= MAX_INTENTOS: u.bloqueado_hasta, u.intentos_fallidos = ahora() + timedelta(minutes=BLOQUEO_MIN), 0
+            if u.intentos_fallidos >= MAX_INTENTOS:
+                u.bloqueado_hasta, u.intentos_fallidos = ahora() + timedelta(minutes=BLOQUEO_MIN), 0; N.seguridad(u, "bloqueo")
             db.session.commit(); flash("Código incorrecto o ya usado."); return _vista("mfa")
         u.mfa_ultimo_contador = c
         iniciar_sesion(u); g.usuario = u
-        registrar("LOGIN", "", empresa_id=u.empresa_id); db.session.commit()
+        registrar("LOGIN", "", empresa_id=u.empresa_id); db.session.commit(); N.seguridad(u, "login")
         return redirect(_destino_seguro(request.args.get("siguiente", ""), u))
     return _vista("mfa")
 
@@ -104,7 +105,7 @@ def mfa_configurar():
             u.mfa_secreto_cifrado, u.mfa_activo, u.mfa_ultimo_contador = cif.cifrar(sec), True, c
             session.pop("mfa_nuevo", None)
             iniciar_sesion(u); g.usuario = u
-            registrar("MFA_ACTIVADO", "", empresa_id=u.empresa_id); db.session.commit()
+            registrar("MFA_ACTIVADO", "", empresa_id=u.empresa_id); db.session.commit(); N.seguridad(u, "mfa")
             return redirect(_destino(u))
     qr = segno.make(totp.uri_otpauth(sec, u.username), error="m").svg_data_uri(scale=5, border=2)
     return _vista("mfa_configurar", qr=qr, secreto=sec)
@@ -145,6 +146,6 @@ def cambiar_clave():
         else:
             u.password_hash, u.sesion_version = hashear(nueva), u.sesion_version + 1
             registrar("CLAVE_CAMBIADA", ""); db.session.commit()
-            iniciar_sesion(u); db.session.commit()
+            iniciar_sesion(u); db.session.commit(); N.seguridad(u, "clave")
             flash("Contraseña actualizada. Se cerraron sus otras sesiones."); return redirect(_destino(u))
     return _vista("cambiar_clave")

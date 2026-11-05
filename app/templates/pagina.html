@@ -9,6 +9,11 @@
 {% elif c.t == 'textarea' %}<textarea name="{{ c.n }}" rows="{{ c.filas or 3 }}" maxlength="{{ c.max or 4000 }}" {{ 'required' if c.req }} {% if c.ph %}placeholder="{{ c.ph }}"{% endif %}>{{ c.valor if c.valor is not none else '' }}</textarea>
 {% else %}<input name="{{ c.n }}" type="{{ c.t }}" {{ 'required' if c.req }} {% if c.t == 'number' %}step="any"{% endif %} value="{{ c.valor if c.valor is not none else '' }}" maxlength="500" {% if c.ph %}placeholder="{{ c.ph }}"{% endif %} autocomplete="{{ 'new-password' if c.t == 'password' else 'off' }}">{% endif %}</label>
 {% endif %}{% endfor %}</div>{% endmacro %}
+{% macro celda(v) %}{% set TONOS = {'Nuevo': 'nuevo', 'Confirmado': 'info', 'Despachado': 'info', 'Facturado en Profit': 'ok', 'Rechazado': 'mal', 'Borrador': 'espera',
+  'Enviado': 'info', 'Aceptado': 'ok', 'Activo': 'ok', 'Activa': 'ok', 'Pausado': 'espera', 'Pausada': 'espera', 'Suspendida': 'mal', 'Inactivo': 'mal',
+  'Sin activar': 'espera', 'Conectado': 'ok', 'Desconectado': 'mal', 'Sin vincular': 'espera', 'Falló la conexión': 'mal', 'Esperando el escaneo del QR': 'espera',
+  'Iniciando…': 'espera', 'Vinculando…': 'espera', 'Requiere atención en el teléfono': 'mal', 'ok': 'ok', 'error': 'mal', '🙋 Pidió una persona': 'nuevo'} %}
+{% set t = TONOS.get(v|string) if v is string else none %}{% if t %}<span class="estado {{ t }}">{{ v }}</span>{% else %}{{ v }}{% endif %}{% endmacro %}
 {% block contenido %}
 <div class="cabecera"><div>{% if empresa %}<div class="ruta">{{ empresa.razon_social }} · RIF {{ empresa.rif }}</div>{% endif %}<h1>{{ titulo }}</h1></div>
 {% if acciones %}<div class="acciones">{% for a in acciones %}<a class="btn {{ '' if a.primaria else 'sec' }}" href="{{ a.url }}">{{ a.texto }}</a>{% endfor %}</div>{% endif %}</div>
@@ -25,7 +30,7 @@
 {% if s.enlaces %}<div class="descargas">{% for e in s.enlaces %}<a class="btn sec" href="{{ e.url }}" rel="noopener noreferrer">{{ e.texto }}</a>{% endfor %}</div>{% endif %}
 {% if s.pares %}<dl class="pares">{% for k, v in s.pares %}<div><dt>{{ k }}</dt><dd>{{ v }}</dd></div>{% endfor %}</dl>{% endif %}
 {% if s.tabla %}<div class="tabla-wrap"><table class="{{ 'ancha' if s.tabla.ancha }}"><thead><tr>{% for c in s.tabla.cols %}<th class="{{ 'n' if loop.index0 in (s.tabla.num or []) }}">{{ c }}</th>{% endfor %}</tr></thead><tbody>
-{% for f in s.tabla.filas %}<tr class="{{ f.clase or '' }}">{% for v in f.cells %}<td class="{{ 'n' if loop.index0 in (s.tabla.num or []) }}">{% if loop.first and f.url %}<a class="fila" href="{{ f.url }}">{{ v }}</a>{% else %}{{ v }}{% endif %}</td>{% endfor %}</tr>
+{% for f in s.tabla.filas %}<tr class="{{ f.clase or '' }}">{% for v in f.cells %}<td class="{{ 'n' if loop.index0 in (s.tabla.num or []) }}">{% if loop.first and f.url %}<a class="fila" href="{{ f.url }}">{{ v }}</a>{% else %}{{ celda(v) }}{% endif %}</td>{% endfor %}</tr>
 {% else %}<tr><td colspan="{{ s.tabla.cols|length }}" class="vacio">Sin registros</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 {% if plegar %}</details>{% else %}</section>{% endif %}{% endif %}
 {% endfor %}{% endblock %}

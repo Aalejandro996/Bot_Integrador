@@ -5,6 +5,7 @@ import time
 from flask import abort, current_app, request
 from sqlalchemy import select
 
+from .. import notificaciones as N
 from .. import openwa as OW
 from .. import profit as PF
 from .. import servicios as SV
@@ -44,21 +45,21 @@ def aviso_whatsapp(clave):
     eid = cfg.empresa_id
     for tel, nombre, texto, wamid, adjunto in OW.mensajes_entrantes(aviso):
         try:
-            SV.procesar_mensaje(eid, tel, nombre, texto, wamid, adjunto=adjunto); db.session.commit()
+            SV.procesar_mensaje(eid, tel, nombre, texto, wamid, adjunto=adjunto); db.session.commit(); N.despachar()
         except Exception:  # noqa: BLE001 — un mensaje defectuoso no debe frenar a los demás ni provocar reintentos en bucle
-            db.session.rollback(); current_app.logger.exception("Mensaje de WhatsApp no procesado")
+            db.session.rollback(); N.descartar(); current_app.logger.exception("Mensaje de WhatsApp no procesado")
     return {"ok": True}
 
 
 # ====================================================================== conector de Profit Plus
 def _conector():
-    cid = request.headers.get("X-Pedyra-Conector", "")
+    cid = request.headers.get("X-Surtia-Conector", "")
     if not cid or len(cid) > 64: abort(401)
     from ..models import ProfitConexion
     c = db.session.execute(select(ProfitConexion).where(ProfitConexion.conector_id == cid)).scalar_one_or_none()
     cuerpo = request.get_data(cache=True)
-    if c is None or not PF.firma_valida(SV.cifrador().descifrar(c.secreto_cifrado), request.headers.get("X-Pedyra-Fecha", ""), cuerpo,
-                                         request.headers.get("X-Pedyra-Firma", "")):
+    if c is None or not PF.firma_valida(SV.cifrador().descifrar(c.secreto_cifrado), request.headers.get("X-Surtia-Fecha", ""), cuerpo,
+                                         request.headers.get("X-Surtia-Firma", "")):
         abort(401)
     e, plat = db.session.get(Empresa, c.empresa_id), SV.profit_plataforma()
     if e is None or not e.activa: abort(402)

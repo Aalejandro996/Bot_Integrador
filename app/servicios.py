@@ -10,6 +10,7 @@ from flask import current_app
 from sqlalchemy import delete, func, insert, select
 
 from . import bot as BOT
+from . import notificaciones as N
 from . import openwa as OW
 from .extensions import db
 from .models import (Contacto, Empresa, Mensaje, Parametros, Pedido, Presupuesto, ProfitArticulo, ProfitCliente, ProfitConexion,
@@ -55,7 +56,7 @@ _ultimo_intento = [0.0]
 
 
 def _get_json(url):
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "Pedyra/1.0"})
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "Surtia/1.0"})
     with urllib.request.urlopen(req, timeout=6) as r:  # noqa: S310 (URL fija HTTPS)
         return json.loads(r.read(64 * 1024))
 
@@ -127,9 +128,11 @@ def conectar_wa(eid, url_webhook) -> WhatsappConfig:
 
 
 def guardar_estado(cfg, estado, tel):
+    anterior = cfg.sesion_estado
     cfg.sesion_estado, cfg.sesion_actualizada = estado, ahora()
     if estado == "ready" and tel: cfg.numero_visible = "".join(c for c in str(tel) if c.isdigit())[:20] or cfg.numero_visible
     db.session.commit()
+    if anterior != estado: N.whatsapp_cambio(cfg, anterior, estado)
     return estado
 
 
@@ -177,10 +180,10 @@ def url_api_profit() -> str:
 
 
 def conector_ini(c: ProfitConexion) -> str:
-    return f"""; Conector Pedyra ↔ Profit Plus (SOLO LECTURA). Generado el {hoy_ve().isoformat()}.
-; Guarde este archivo como «pedyra_conector.ini» junto a pedyra_conector.exe. No lo comparta: la clave identifica a su empresa.
+    return f"""; Conector Surtia ↔ Profit Plus (SOLO LECTURA). Generado el {hoy_ve().isoformat()}.
+; Guarde este archivo como «surtia_conector.ini» junto a surtia_conector.exe. No lo comparta: la clave identifica a su empresa.
 
-[pedyra]
+[surtia]
 url = {url_api_profit()}
 conector = {c.conector_id}
 clave = {cifrador().descifrar(c.secreto_cifrado)}
@@ -189,7 +192,7 @@ clave = {cifrador().descifrar(c.secreto_cifrado)}
 ; Servidor y base de datos de Profit Plus. Use un usuario de SOLO LECTURA (vea crear_usuario_lectura.sql).
 servidor = localhost\\SQLEXPRESS
 base_datos = NOMBRE_DE_LA_EMPRESA_EN_PROFIT
-usuario = pedyra_lectura
+usuario = surtia_lectura
 contrasena =
 ; driver = ODBC Driver 18 for SQL Server
 ; cifrar = no
@@ -383,7 +386,9 @@ def procesar_mensaje(eid, tel, nombre, texto, wamid, adjunto=None) -> list[str]:
     c.estado = estado
     for ev in eventos:
         if "tipo_contacto" in ev: c.tipo = ev["tipo_contacto"]
-        if ev.get("atencion"): c.atencion = True
+        if ev.get("atencion"):
+            if not c.atencion: N.atencion(c)
+            c.atencion = True
         if "crear_pedido" in ev:
             d = ev["crear_pedido"]
             lineas = [dict(l, alicuota=alicuota_de(eid, l.get("codigo"))) for l in d["lineas"]]
@@ -392,7 +397,7 @@ def procesar_mensaje(eid, tel, nombre, texto, wamid, adjunto=None) -> list[str]:
                        codigo_cliente=c.codigo_profit, lineas=lineas, total=total, nota=d.get("nota") or None)
             db.session.add(p); db.session.flush()
             respuestas = [r + f"\nN° de {'pedido' if p.tipo == 'venta' else 'oferta'}: *{p.numero}*" if i == 0 else r for i, r in enumerate(respuestas)]
-            registrar("PEDIDO_WHATSAPP", f"{p.tipo} N°{p.numero} tel=…{tel[-4:]} total={total}", empresa_id=eid, usuario="bot")
+            registrar("PEDIDO_WHATSAPP", f"{p.tipo} N°{p.numero} tel=…{tel[-4:]} total={total}", empresa_id=eid, usuario="bot"); N.pedido_nuevo(p)
         if "crear_presupuesto" in ev:
             lineas = lineas_con_monto(eid, ev["crear_presupuesto"]["lineas"], cat)
             if not lineas:
@@ -406,7 +411,7 @@ def procesar_mensaje(eid, tel, nombre, texto, wamid, adjunto=None) -> list[str]:
             if pv is None or pv.estado not in ("Enviado", "Borrador"):
                 respuestas = [f"No encontramos un presupuesto N° {ev['presupuesto_aceptado']} pendiente a su nombre."]
             else:
-                pv.estado = "Aceptado"; registrar("PRESUPUESTO_ACEPTADO", f"N°{pv.numero}", empresa_id=eid, usuario="bot")
+                pv.estado = "Aceptado"; registrar("PRESUPUESTO_ACEPTADO", f"N°{pv.numero}", empresa_id=eid, usuario="bot"); N.presupuesto_aceptado(pv)
                 respuestas = [f"✅ Presupuesto N° {pv.numero} aceptado. Le confirmaremos la factura y la entrega por aquí."]
     return [r for r in respuestas if responder(r)]
 
@@ -435,9 +440,10 @@ def procesar_orden_pdf(eid, c: Contacto, adjunto) -> list[str]:
     if rif and not c.rif: c.rif = rif
     nombre = (cp.nombre if cp else None) or c.nombre or ("+" + c.telefono)
     if not leido["lineas"]:
-        db.session.add(Pedido(empresa_id=eid, numero=_siguiente(eid, Pedido), tipo="venta", origen="whatsapp_pdf", contacto_id=c.id, telefono=c.telefono,
-                              nombre=nombre, rif=rif, codigo_cliente=cp.codigo if cp else None, lineas=[], total=0, referencia_cliente=leido["referencia"],
-                              nota=("No identificado: " + "; ".join(leido["no_identificadas"]))[:2000] or "PDF sin productos reconocidos"))
+        p = Pedido(empresa_id=eid, numero=_siguiente(eid, Pedido), tipo="venta", origen="whatsapp_pdf", contacto_id=c.id, telefono=c.telefono,
+                   nombre=nombre, rif=rif, codigo_cliente=cp.codigo if cp else None, lineas=[], total=0, referencia_cliente=leido["referencia"],
+                   nota=("No identificado: " + "; ".join(leido["no_identificadas"]))[:2000] or "PDF sin productos reconocidos")
+        db.session.add(p); db.session.flush(); N.pedido_nuevo(p)
         responder("Recibimos su orden de compra, pero no identificamos productos de nuestro catálogo. Un asesor la revisará y le escribirá. "
                   "Si prefiere, escriba *1* para ver el catálogo con los códigos.")
         return []
@@ -448,7 +454,7 @@ def procesar_orden_pdf(eid, c: Contacto, adjunto) -> list[str]:
     p = Pedido(empresa_id=eid, numero=_siguiente(eid, Pedido), tipo="venta", origen="whatsapp_pdf", contacto_id=c.id, telefono=c.telefono, nombre=nombre, rif=rif,
                codigo_cliente=cp.codigo if cp else None, lineas=lineas, total=total, nota=nota[:2000] or None, referencia_cliente=leido["referencia"])
     db.session.add(p); db.session.flush()
-    registrar("ORDEN_PDF", f"pedido N°{p.numero} lineas={len(lineas)} faltantes={len(faltan)} ref={leido['referencia'] or ''}", empresa_id=eid, usuario="bot")
+    registrar("ORDEN_PDF", f"pedido N°{p.numero} lineas={len(lineas)} faltantes={len(faltan)} ref={leido['referencia'] or ''}", empresa_id=eid, usuario="bot"); N.pedido_nuevo(p)
     doc = documento_pedido(p)
     detalle = "\n".join(f"• {l['codigo']} {l['descripcion']} × {l['cantidad']}" + (f" (pidió {l['solicitado']})" if l["solicitado"] != l["cantidad"] else "") for l in lineas)
     partes = [f"✅ Recibimos su orden de compra{(' N° ' + leido['referencia']) if leido['referencia'] else ''}."]

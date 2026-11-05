@@ -1,4 +1,4 @@
-/* Pedyra™ — comportamiento mínimo de la interfaz (sin dependencias; la CSP no permite scripts en línea). */
+/* Surtia™ — comportamiento mínimo de la interfaz (sin dependencias; la CSP no permite scripts en línea). */
 (function () {
   "use strict";
 
