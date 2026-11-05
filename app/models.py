@@ -47,6 +47,9 @@ class Usuario(db.Model):
     sesion_version = db.Column(db.Integer, nullable=False, default=1)
     token_activacion_hash = db.Column(db.Text, unique=True)       # SHA-256 del enlace de activación (un uso)
     token_activacion_vence = db.Column(db.DateTime(timezone=True))
+    token_recuperacion_hash = db.Column(db.Text, unique=True)     # SHA-256 del enlace «olvidé mi contraseña» (un uso, 30 min)
+    token_recuperacion_vence = db.Column(db.DateTime(timezone=True))
+    clave_pendiente_hash = db.Column(db.Text)                     # clave nueva: se aplica SOLO tras confirmar el código MFA
     ultimo_acceso = db.Column(db.DateTime(timezone=True))
     guia_vista = db.Column(db.Boolean, nullable=False, default=False, server_default="false")   # terminó la guía de inicio
     creado = db.Column(db.DateTime(timezone=True), default=ahora, nullable=False)

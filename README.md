@@ -66,6 +66,13 @@ Plantilla HTML propia con estilos en línea y versión de texto (`app/plantilla_
   reemplaza completa en una transacción; la clave de SQL Server nunca sale de la red del cliente.
 - Secretos (MFA, pasarela, conector, avisos) cifrados en reposo con Fernet. CSV exportado protegido contra fórmulas.
 
+## Olvidé mi contraseña
+«¿Olvidó su contraseña?» en el inicio de sesión → usuario o correo → enlace de un solo uso (30 min) al correo de la cuenta →
+contraseña nueva → **código MFA** de la aplicación autenticadora. La clave solo cambia tras ese código; luego se cierran las demás
+sesiones y llega el aviso «Su contraseña cambió». La pantalla responde igual exista o no la cuenta, hay un correo como máximo cada
+2 minutos por cuenta y los códigos errados cuentan para el bloqueo. Sin MFA activo (o sin el teléfono) se usa el «nuevo enlace» que
+da el administrador o el Maestro. **Requiere `BREVO_API_KEY`** (o SMTP) para que el correo salga.
+
 ## Guía de inicio
 Al activar su cuenta, el administrador entra a **Guía de inicio** (también en el menú): 9 pasos con lo que hará el bot, lo que no hace,
 cómo vincular WhatsApp, conectar Profit, elegir almacenes y precios, personalizar el saludo, invitar al equipo, atender pedidos y

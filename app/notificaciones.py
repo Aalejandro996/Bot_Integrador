@@ -79,6 +79,18 @@ def enlace_activacion(u: Usuario, enlace: str, motivo="invitacion", empresa: Emp
     return enviado, f"{falla} Envíe este enlace a {u.username} (72 horas, un solo uso): {enlace}".strip()
 
 
+def recuperacion(u: Usuario, enlace: str):
+    """Correo con el enlace para elegir una contraseña nueva. Sale después del commit, como los demás avisos."""
+    encolar([u.email], "Recupere su contraseña",
+            f"Hola{(' ' + u.nombre) if u.nombre else ''}:\n\nRecibimos una solicitud para cambiar la contraseña de su cuenta en Surtia.\n\n"
+            "Con el botón elegirá una contraseña nueva. Para confirmar que es usted, después le pediremos el código de 6 dígitos "
+            "de su aplicación autenticadora: sin ese código la contraseña no cambia.",
+            boton=("Elegir una contraseña nueva", enlace),
+            filas=[("Usuario", u.username), ("Vigencia", "30 minutos, un solo uso"), ("Solicitado", _hora()), ("Dirección IP", _ip())],
+            nota="Si no lo pidió usted, ignore este correo: su contraseña sigue igual. " + NOTA_SEGURIDAD,
+            aviso=("alerta", "Recuperación de contraseña"))
+
+
 # ====================================================================== seguridad de la cuenta
 _SEGURIDAD = {
     "login": ("Nuevo inicio de sesión", "Se inició sesión en su cuenta.", "info"),

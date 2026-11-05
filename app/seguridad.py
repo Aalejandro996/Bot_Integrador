@@ -54,6 +54,29 @@ def nuevo_enlace_activacion(u: Usuario) -> str:
     return current_app.config["APP_BASE_URL"] + url_for("auth.activar", token=token)
 
 
+VIGENCIA_RECUPERACION_MIN = 30
+ESPERA_RECUPERACION_S = 120       # entre dos correos de recuperación para la misma cuenta
+
+
+def nuevo_enlace_recuperacion(u: Usuario) -> str:
+    """Enlace de un solo uso (30 min) para elegir una contraseña nueva. Solo se guarda su SHA-256; no toca el MFA."""
+    token = secrets.token_urlsafe(32)
+    u.token_recuperacion_hash, u.token_recuperacion_vence = _h(token), ahora() + timedelta(minutes=VIGENCIA_RECUPERACION_MIN)
+    u.clave_pendiente_hash = None
+    return current_app.config["APP_BASE_URL"] + url_for("auth.recuperar_clave", token=token)
+
+
+def usuario_por_recuperacion(token: str) -> Usuario | None:
+    if not token or len(token) > 100: return None
+    u = db.session.query(Usuario).filter_by(token_recuperacion_hash=_h(token)).one_or_none()
+    if u is None or not u.activo or not u.mfa_activo or u.token_recuperacion_vence is None or u.token_recuperacion_vence < ahora(): return None
+    return u
+
+
+def anular_recuperacion(u: Usuario):
+    u.token_recuperacion_hash = u.token_recuperacion_vence = u.clave_pendiente_hash = None
+
+
 def usuario_por_token(token: str) -> Usuario | None:
     if not token or len(token) > 100: return None
     u = db.session.query(Usuario).filter_by(token_activacion_hash=_h(token)).one_or_none()

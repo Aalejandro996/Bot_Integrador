@@ -300,6 +300,11 @@ def _muestras():
                        "Con el botón creará su contraseña y activará la verificación en dos pasos."], boton=("Crear mi contraseña", base + "/activar/ejemplo"),
                        filas=[("Usuario", "orituco"), ("Rol", "Administrador"), ("Vigencia", "72 horas, un solo uso")], aviso=("info", "Activación de cuenta"),
                        nota="Si no esperaba este correo, ignórelo. Surtia nunca le pedirá su contraseña ni sus códigos.")),
+        "recuperacion": ("Recuperar contraseña", h("Recupere su contraseña", ["Recibimos una solicitud para cambiar la contraseña de su cuenta en Surtia.",
+                         "Con el botón elegirá una contraseña nueva. Para confirmar que es usted, después le pediremos el código de 6 dígitos de su aplicación "
+                         "autenticadora: sin ese código la contraseña no cambia."], boton=("Elegir una contraseña nueva", base + "/recuperar/ejemplo"),
+                         filas=[("Usuario", "orituco"), ("Vigencia", "30 minutos, un solo uso"), ("Dirección IP", "190.202.0.10")], aviso=("alerta", "Recuperación de contraseña"),
+                         nota="Si no lo pidió usted, ignore este correo: su contraseña sigue igual.")),
         "seguridad": ("Nuevo inicio de sesión", h("Nuevo inicio de sesión", ["Se inició sesión en su cuenta.", "Si fue usted, no tiene que hacer nada."],
                       filas=[("Usuario", "orituco"), ("Fecha", "05/11/2026 09:14 am"), ("Dirección IP", "190.202.0.10")], aviso=("info", "Seguridad de la cuenta"),
                       boton=("Abrir Surtia", base + "/login"))),

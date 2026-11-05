@@ -286,6 +286,34 @@ def test_recorrido_completo(app):
     c = app.test_client()
     c.post("/login", data={"usuario": "gigadevs", "clave": CLAVE})
     assert c.post("/mfa?siguiente=/%5Cevil.com", data={"codigo": totp.codigo(sec_root, t=time.time() + 30)}).headers["Location"] == "/maestro"
+    # --- olvidé mi contraseña: enlace por correo → clave nueva → código MFA → recién ahí cambia
+    from app.extensions import limiter
+    r = app.test_client()
+    assert "¿Olvidó su contraseña?" in r.get("/login").get_data(as_text=True)
+    resp_ok = r.post("/recuperar", data={"usuario": "SOPORTE@gigadevs.test"}).get_data(as_text=True)
+    resp_no = r.post("/recuperar", data={"usuario": "nadie@x.test"}).get_data(as_text=True)
+    assert "Si la cuenta existe" in resp_ok and resp_ok == resp_no                        # no revela si la cuenta existe
+    assert "Recupere su contraseña · Surtia" in asuntos("soporte@gigadevs.test")
+    n = len(asuntos("soporte@gigadevs.test")); r.post("/recuperar", data={"usuario": "gigadevs"})
+    assert len(asuntos("soporte@gigadevs.test")) == n                                     # no reenvía antes de 2 minutos
+    enl = re.search(r"https://bot\.test(/recuperar/[\w-]+)", texto_de("soporte@gigadevs.test")).group(1)
+    nueva = "Otra-Clave#Segura2026"
+    assert "Elija una contraseña nueva" in r.get(enl).get_data(as_text=True)
+    assert "distinta de la anterior" in r.post(enl, data={"nueva": CLAVE, "repetir": CLAVE}).get_data(as_text=True)
+    assert r.post(enl, data={"nueva": nueva, "repetir": nueva}).headers["Location"].endswith("/recuperar/confirmar")
+    assert "anterior" not in r.get("/recuperar/confirmar").get_data(as_text=True)
+    assert app.test_client().post("/login", data={"usuario": "gigadevs", "clave": nueva}).status_code == 200   # aún NO cambió
+    t = r.post("/recuperar/confirmar", data={"codigo": "000000"}).get_data(as_text=True)
+    assert "La contraseña aún no cambió" in t
+    with app.app_context():                                     # el código anterior ya se usó en esta ventana de 30 s
+        db.session.execute(db.text("UPDATE usuarios SET mfa_ultimo_contador = 0 WHERE username='gigadevs'")); db.session.commit()
+    assert r.post("/recuperar/confirmar", data={"codigo": totp.codigo(sec_root)}).headers["Location"] == "/maestro"
+    assert "Su contraseña cambió · Surtia" in asuntos("soporte@gigadevs.test")
+    assert root.get("/maestro").status_code == 302                                         # se cerraron las demás sesiones
+    assert "Enlace no válido" in r.get(enl).get_data(as_text=True)                         # el enlace era de un solo uso
+    c2 = app.test_client()
+    assert c2.post("/login", data={"usuario": "gigadevs", "clave": nueva}).headers["Location"].endswith("/mfa")
+    assert "Enlace no válido" in app.test_client().get("/recuperar/" + "x" * 43).get_data(as_text=True)
 
 
 def _pdf(lineas):

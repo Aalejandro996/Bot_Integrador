@@ -1,5 +1,5 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{ {'login':'Iniciar sesión','activar':'Activar cuenta','enlace_invalido':'Enlace no válido','cambiar_clave':'Cambiar contraseña','mfa':'Verificación en dos pasos','mfa_configurar':'Activar verificación'}[vista] }} · {{ config.APP_NOMBRE }}</title>
+<title>{{ {'login':'Iniciar sesión','activar':'Activar cuenta','enlace_invalido':'Enlace no válido','cambiar_clave':'Cambiar contraseña','mfa':'Verificación en dos pasos','mfa_configurar':'Activar verificación','recuperar':'Recuperar contraseña','recuperar_enviado':'Revise su correo','recuperar_clave':'Nueva contraseña','recuperar_confirmar':'Confirme que es usted'}[vista] }} · {{ config.APP_NOMBRE }}</title>
 <meta name="robots" content="noindex, nofollow"><link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any"><link rel="icon" href="{{ url_for('static', filename='marca/logo-icono.svg') }}" type="image/svg+xml">
 <meta name="theme-color" content="#0B2530"><link rel="apple-touch-icon" href="{{ url_for('static', filename='marca/apple-touch-icon.png') }}"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"></head>
 <body><div class="auth">
@@ -17,7 +17,7 @@
     <label>Usuario o correo<input name="usuario" required maxlength="254" autocomplete="username" autofocus></label>
     <label>Contraseña<input name="clave" type="password" required maxlength="128" autocomplete="current-password"></label>
     <button>Entrar</button></form>
-  <p class="peq">¿Olvidó su contraseña? Pida a su administrador (o a Gigadevs) un nuevo enlace de activación.</p>
+  <div class="enlaces"><a href="{{ url_for('auth.recuperar') }}">¿Olvidó su contraseña?</a></div>
 {% elif vista == 'activar' %}
   <h2>Active su cuenta</h2><p class="peq">Usuario: <b>{{ usuario }}</b></p>
   <p class="peq">Mínimo 12 caracteres y al menos 3 de: minúsculas, mayúsculas, números y símbolos.</p>
@@ -26,8 +26,34 @@
     <label>Repita la contraseña<input name="repetir" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
     <button>Guardar y continuar</button></form>
 {% elif vista == 'enlace_invalido' %}
-  <h2>Enlace no válido</h2><p class="peq">El enlace venció, ya se usó o no existe. Pida uno nuevo a su administrador o a Gigadevs.</p>
+  <h2>Enlace no válido</h2>
+  {% if recuperacion %}<p class="peq">El enlace venció (dura 30 minutos), ya se usó o la confirmación tardó demasiado. Su contraseña no cambió: pida un enlace nuevo.</p>
+  <div class="enlaces"><a href="{{ url_for('auth.recuperar') }}">Pedir un enlace nuevo</a> · <a href="{{ url_for('auth.login') }}">Iniciar sesión</a></div>
+  {% else %}<p class="peq">El enlace venció, ya se usó o no existe. Pida uno nuevo a su administrador o a Gigadevs.</p>
+  <div class="enlaces"><a href="{{ url_for('auth.login') }}">← Iniciar sesión</a></div>{% endif %}
+{% elif vista == 'recuperar' %}
+  <span class="auth-etiqueta">Recuperar acceso</span><h2>¿Olvidó su contraseña?</h2>
+  <p class="peq">Escriba su usuario o su correo. Le enviaremos un enlace para elegir una contraseña nueva; luego le pediremos el código de su aplicación autenticadora para confirmar que es usted.</p>
+  <form method="post">{{ csrf }}
+    <label>Usuario o correo<input name="usuario" required maxlength="254" autocomplete="username" autofocus></label>
+    <button>Enviarme el enlace</button></form>
+  <p class="peq">¿Perdió también el teléfono con la aplicación autenticadora? Pida a su administrador (o a Gigadevs) un nuevo enlace de activación.</p>
   <div class="enlaces"><a href="{{ url_for('auth.login') }}">← Iniciar sesión</a></div>
+{% elif vista == 'recuperar_enviado' %}
+  <span class="auth-etiqueta">Recuperar acceso</span><h2>Revise su correo</h2><p class="peq">{{ mensaje }}</p>
+  <div class="enlaces"><a href="{{ url_for('auth.login') }}">← Iniciar sesión</a></div>
+{% elif vista == 'recuperar_clave' %}
+  <span class="auth-etiqueta">Paso 1 de 2</span><h2>Elija una contraseña nueva</h2><p class="peq">Usuario: <b>{{ usuario }}</b></p>
+  <p class="peq">Mínimo 12 caracteres y al menos 3 de: minúsculas, mayúsculas, números y símbolos.</p>
+  <form method="post">{{ csrf }}
+    <label>Contraseña nueva<input name="nueva" type="password" required minlength="12" maxlength="128" autocomplete="new-password" autofocus></label>
+    <label>Repita la contraseña<input name="repetir" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></label>
+    <button>Continuar</button></form>
+{% elif vista == 'recuperar_confirmar' %}
+  <span class="auth-etiqueta">Paso 2 de 2</span><h2>Confirme que es usted</h2>
+  <p class="peq">Escriba el código de 6 dígitos de su aplicación autenticadora. La contraseña nueva se guarda solo después de este paso.</p>
+  <form method="post">{{ csrf }}<label>Código<input name="codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus autocomplete="one-time-code"></label><button>Confirmar y cambiar la contraseña</button></form>
+  <div class="enlaces"><a href="{{ url_for('auth.login') }}">Cancelar</a></div>
 {% elif vista == 'mfa' %}
   <h2>Verificación en dos pasos</h2><p class="peq">Escriba el código de 6 dígitos de su aplicación autenticadora.</p>
   <form method="post">{{ csrf }}<label>Código<input name="codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus autocomplete="one-time-code"></label><button>Verificar</button></form>

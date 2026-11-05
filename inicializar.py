@@ -18,6 +18,9 @@ def main():
         # columnas nuevas en tablas que ya existían (create_all no altera tablas)
         from app.models import ESTADOS_PEDIDO
         for sql in ("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS guia_vista BOOLEAN NOT NULL DEFAULT false",
+                    "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS token_recuperacion_hash TEXT UNIQUE",
+                    "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS token_recuperacion_vence TIMESTAMPTZ",
+                    "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS clave_pendiente_hash TEXT",
                     "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS sistema TEXT NOT NULL DEFAULT 'profit'",
                     "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS opciones JSON NOT NULL DEFAULT '{}'",
                     "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS credenciales_cifradas TEXT",
