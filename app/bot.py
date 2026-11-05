@@ -32,19 +32,47 @@ def bs(v) -> str:
     return f"{Decimal(str(v)):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def menu(tipo, empresa) -> str:
+SALUDOS = ("hola", "holaa", "buenas", "buen dia", "buenos dias", "buenas tardes", "buenas noches", "saludos", "epa", "hey", "que tal")
+GRACIAS = ("gracias", "muchas gracias", "mil gracias", "ok gracias", "listo gracias", "grs", "thanks", "perfecto gracias", "excelente gracias")
+DESPEDIDAS = ("chao", "chau", "adios", "hasta luego", "nos vemos", "bye", "hasta manana")
+INTENCIONES = {   # frases naturales → opción del menú de clientes
+    "1": ("catalogo", "ver catalogo", "productos", "que tienen", "que venden", "lista", "lista de precios", "precios", "menu de productos", "inventario"),
+    "2": ("mi pedido", "ver mi pedido", "ver pedido", "carrito", "que llevo", "que tengo", "resumen"),
+    "3": ("confirmar", "confirmar pedido", "confirmo", "listo", "eso es todo", "es todo", "seria todo", "si confirmo", "enviar pedido", "procesar"),
+    "4": ("mis pedidos", "estado", "estado de mi pedido", "como va mi pedido", "donde esta mi pedido", "ya esta mi pedido"),
+    "5": ("persona", "una persona", "asesor", "un asesor", "humano", "alguien", "vendedor", "hablar con alguien", "hablar con una persona",
+          "atencion", "atencion al cliente", "agente"),
+    "6": ("presupuesto", "cotizar", "cotizacion", "pedir presupuesto", "cotizame", "proforma"),
+}
+
+
+def _intencion(t: str) -> str | None:
+    for op, frases in INTENCIONES.items():
+        if t in frases: return op
+        if op in ("4", "5") and any(t.startswith(f + " ") or t.endswith(" " + f) or (" " + f + " ") in t for f in frases if len(f) > 6): return op
+    return None
+
+
+def _hola(nombre) -> str:
+    n = (str(nombre or "").strip().split() or [""])[0].capitalize()
+    return f"¡Hola, {n}!" if n and not n.isdigit() and not n.startswith("+") else "¡Hola!"
+
+
+def menu(tipo, empresa, nombre=None, saludo=True) -> str:
+    cab = (_hola(nombre) + " ") if saludo else ""
     if tipo == "proveedor":
-        return (f"*{empresa}* · Menú de proveedores\n"
-                "1️⃣ Órdenes de compra pendientes\n2️⃣ Enviar oferta o cotización\n3️⃣ Hablar con una persona\n"
-                "Para responder una orden: *CONFIRMAR 12* o *RECHAZAR 12 motivo*.")
-    return (f"*{empresa}* · ¿Qué desea hacer?\n"
-            "1️⃣ Ver catálogo\n2️⃣ Ver mi pedido\n3️⃣ Confirmar pedido\n4️⃣ Estado de mis pedidos\n5️⃣ Hablar con una persona\n6️⃣ Pedir presupuesto de lo que agregué\n"
-            "Para pedir escriba el código y la cantidad, p. ej. *A001 3*. Para buscar escriba el nombre, p. ej. *harina*. "
-            "Para quitar: *QUITAR A001*. *VACIAR* borra el pedido.")
+        return (f"{cab}Está hablando con el asistente de proveedores de *{empresa}*. ¿En qué le ayudo?\n\n"
+                "1️⃣ Ver mis órdenes de compra pendientes\n2️⃣ Enviar una oferta o cotización\n3️⃣ Hablar con alguien de compras\n\n"
+                "Para responder una orden escríbame, por ejemplo, *CONFIRMAR 12* o *RECHAZAR 12 y el motivo*.")
+    return (f"{cab}Soy el asistente virtual de *{empresa}* 🤖. Puedo tomarle el pedido ahora mismo. ¿Qué necesita?\n\n"
+            "1️⃣ Ver el catálogo\n2️⃣ Ver lo que llevo\n3️⃣ Confirmar mi pedido\n4️⃣ ¿Cómo van mis pedidos?\n5️⃣ Hablar con una persona\n"
+            "6️⃣ Pedir un presupuesto\n\n"
+            "También puede escribirme como le resulte natural: *«harina»* para buscar, *«quiero 3 harina pan»* o *«A001 3»* para agregar, "
+            "*«quitar A001»* para sacar algo y *«vaciar»* para empezar de nuevo.")
 
 
 def _linea(c, v) -> str:
-    return f"• *{c}* {v[0]} — Bs {bs(v[1])}" + ("" if v[2] is None else (" ✅" if Decimal(str(v[2])) > 0 else " (agotado)"))
+    return f"• *{c}* · {v[0]} — Bs {bs(v[1])}" + ("" if v[2] is None else ("" if Decimal(str(v[2])) > 0 else " _(agotado por ahora)_"))
 
 
 def buscar(catalogo, consulta, n=MAX_BUSQUEDA):
@@ -61,16 +89,17 @@ def buscar(catalogo, consulta, n=MAX_BUSQUEDA):
 
 
 def _carrito_texto(carrito, catalogo):
-    if not carrito: return "Su pedido está vacío. Escriba *1* para ver el catálogo.", Decimal(0)
+    if not carrito: return "Todavía no ha agregado nada: su pedido está vacío. ¿Le muestro el catálogo? Escriba *1* o el nombre de lo que busca.", Decimal(0)
     lineas, total = [], Decimal(0)
     for cod, cant in carrito.items():
         nom, precio, _ = catalogo.get(cod, (cod, Decimal(0), None))
         sub = Decimal(str(precio)) * Decimal(str(cant)); total += sub
         lineas.append(f"• {cod} {nom} × {cant} = Bs {bs(sub)}")
-    return "🛒 *Su pedido*\n" + "\n".join(lineas) + f"\n*Total referencial: Bs {bs(total)}* (IVA no incluido)\nEscriba *3* para confirmarlo.", total
+    return ("🛒 *Esto es lo que lleva hasta ahora:*\n" + "\n".join(lineas) + f"\n\n*Total referencial: Bs {bs(total)}* (sin IVA)"
+            "\n¿Lo confirmo? Escriba *3*, o siga agregando productos."), total
 
 
-def responder(texto, tipo, estado, catalogo, empresa, pedidos=(), ordenes=(), bienvenida=None):
+def responder(texto, tipo, estado, catalogo, empresa, pedidos=(), ordenes=(), bienvenida=None, nombre=None):
     """texto: mensaje recibido. tipo: nuevo|cliente|proveedor. estado: dict persistido del contacto.
     catalogo: {codigo: (nombre, precio_bs, existencia)}. pedidos: [(numero, estado, total)] del contacto.
     ordenes: [(numero, estado, total, moneda)] de órdenes de compra dirigidas a este proveedor.
@@ -80,16 +109,21 @@ def responder(texto, tipo, estado, catalogo, empresa, pedidos=(), ordenes=(), bi
 
     if tipo == "bloqueado": return [], est, ev
     if tipo == "nuevo":
-        if t in ("1", "cliente", "soy cliente"):
-            ev.append({"tipo_contacto": "cliente"}); return [menu("cliente", empresa)], {}, ev
+        if t in ("1", "cliente", "soy cliente", "comprar", "quiero comprar", "para comprar"):
+            ev.append({"tipo_contacto": "cliente"}); return [menu("cliente", empresa, nombre, saludo=False)], {}, ev
         if t in ("2", "proveedor", "soy proveedor"):
-            ev.append({"tipo_contacto": "proveedor"}); return [menu("proveedor", empresa)], {}, ev
-        saludo = bienvenida or f"¡Hola! Gracias por escribir a *{empresa}*."
-        return [saludo + "\nPara atenderle mejor responda:\n1️⃣ si es *cliente*\n2️⃣ si es *proveedor*"], est, ev
+            ev.append({"tipo_contacto": "proveedor"}); return [menu("proveedor", empresa, nombre, saludo=False)], {}, ev
+        saludo = bienvenida or f"{_hola(nombre)} Gracias por escribirle a *{empresa}* 😊"
+        return [saludo + "\n\nPara atenderle como se merece, cuénteme: ¿nos escribe como *cliente* o como *proveedor*?\n"
+                "1️⃣ Soy cliente\n2️⃣ Soy proveedor"], est, ev
 
-    if t in ("hola", "menu", "inicio", "0", "buenas", "buenos dias", "buenas tardes", "buenas noches", "ayuda"):
+    if t in SALUDOS or t in ("menu", "inicio", "0", "ayuda", "opciones") or any(t.startswith(x + " ") for x in SALUDOS[:8]) and len(t) <= 30:
         est.pop("paso", None)
-        return [menu(tipo, empresa)], est, ev
+        return [menu(tipo, empresa, nombre, saludo=t not in ("menu", "inicio", "0", "ayuda", "opciones"))], est, ev
+    if t in GRACIAS or t.startswith("gracias"):
+        return ["¡Con mucho gusto! 🙌 Aquí estoy si necesita algo más."], est, ev
+    if t in DESPEDIDAS:
+        return ["¡Que tenga un excelente día! Cuando quiera hacer otro pedido, solo escríbame. 👋"], est, ev
 
     # ------------------------------------------------------------ proveedores
     if tipo == "proveedor":
@@ -102,88 +136,111 @@ def responder(texto, tipo, estado, catalogo, empresa, pedidos=(), ordenes=(), bi
                         cod = m.group(1).upper()
                         lineas.append({"codigo": cod, "descripcion": catalogo.get(cod, (cod,))[0], "cantidad": str(_dec(m.group(2))), "precio": str(_dec(m.group(3)))})
                     else: notas.append(ln)
-                if not lineas and not notas: return ["No recibimos ninguna línea. Escriba su oferta o *CANCELAR*."], est, ev
+                if not lineas and not notas: return ["Todavía no me ha enviado ninguna línea. Escriba su oferta o *CANCELAR* si prefiere dejarlo para después."], est, ev
                 ev.append({"crear_pedido": {"tipo": "compra", "lineas": lineas, "nota": "\n".join(notas)[:2000]}})
-                return ["✅ Recibimos su oferta. Nuestro equipo de compras la revisará y le responderá por aquí."], {}, ev
-            if t == "cancelar": return ["Oferta cancelada.", menu("proveedor", empresa)], {}, ev
+                return ["✅ ¡Listo, recibimos su oferta! El equipo de compras la va a revisar y le responde por aquí mismo."], {}, ev
+            if t == "cancelar": return ["Sin problema, cancelé la oferta.", menu("proveedor", empresa, nombre, saludo=False)], {}, ev
             of = (est.get("oferta") or []) + [ln for ln in str(texto).splitlines() if ln.strip()][:50]
-            return ["Anotado. Siga escribiendo o envíe *FIN* para remitir la oferta."], {**est, "oferta": of[:200]}, ev
+            return ["Anotado 👍 Siga escribiendo y, cuando termine, envíe *FIN* para remitirla."], {**est, "oferta": of[:200]}, ev
         m = re.fullmatch(r"(confirmar|aceptar|rechazar)\s*(?:oc)?\s*#?\s*(\d{1,9})\s*(.*)", t)
         if m:
             num, mias = int(m.group(2)), {o[0]: o for o in ordenes}
-            if num not in mias: return [f"No encontramos la orden de compra N° {num} dirigida a usted."], est, ev
-            if mias[num][1] not in ("Emitida", "Enviada"): return [f"La orden N° {num} ya está {mias[num][1].lower()}."], est, ev
+            if num not in mias: return [f"No encontramos la orden de compra N° {num} a su nombre. ¿Puede revisar el número?"], est, ev
+            if mias[num][1] not in ("Emitida", "Enviada"): return [f"La orden N° {num} ya está {mias[num][1].lower()}, así que no hace falta hacer nada más."], est, ev
             if m.group(1) == "rechazar":
                 ev.append({"oc_rechazada": num, "motivo": str(texto).split(None, 2)[2][:300] if len(str(texto).split(None, 2)) > 2 else "Sin motivo"})
-                return [f"Registramos el rechazo de la orden N° {num}. Gracias por avisar."], est, ev
+                return [f"Entendido, dejamos registrado que no puede atender la orden N° {num}. Gracias por avisarnos a tiempo."], est, ev
             ev.append({"oc_confirmada": num})
-            return [f"✅ Orden de compra N° {num} confirmada. ¡Gracias! Le esperamos según las condiciones de entrega."], est, ev
+            return [f"✅ ¡Perfecto! La orden de compra N° {num} quedó confirmada. Lo esperamos según las condiciones de entrega."], est, ev
         if t == "1":
             pend = [o for o in ordenes if o[1] in ("Emitida", "Enviada", "Confirmada")]
-            if not pend: return ["No tiene órdenes de compra pendientes con nosotros."], est, ev
-            return ["📄 *Órdenes de compra*\n" + "\n".join(f"• N° {o[0]} · {o[1]} · {o[3]} {bs(o[2])}" for o in pend[:20])
-                    + "\nResponda *CONFIRMAR N°* o *RECHAZAR N° motivo*."], est, ev
+            if not pend: return ["Por ahora no tiene órdenes de compra pendientes con nosotros. 👌"], est, ev
+            return ["📄 *Sus órdenes de compra pendientes:*\n" + "\n".join(f"• N° {o[0]} · {o[1]} · {o[3]} {bs(o[2])}" for o in pend[:20])
+                    + "\n\nPara responder escriba *CONFIRMAR* y el número, o *RECHAZAR*, el número y el motivo."], est, ev
         if t == "2":
-            return ["Escriba su oferta. Una línea por producto: *CÓDIGO CANTIDAD PRECIO* (p. ej. A001 50 2,35) o texto libre. "
-                    "Cuando termine envíe *FIN*."], {"paso": "oferta", "oferta": []}, ev
-        if t == "3":
-            ev.append({"atencion": True}); return ["Un miembro del equipo le responderá en breve por este chat."], est, ev
-        return ["No entendí su mensaje. Escriba *MENÚ* para ver las opciones."], est, ev
+            return ["¡Claro! Escríbame su oferta, una línea por producto con *código, cantidad y precio* (por ejemplo: A001 50 2,35), "
+                    "o como texto libre si le resulta más fácil. Cuando termine, envíe *FIN*."], {"paso": "oferta", "oferta": []}, ev
+        if t == "3" or _intencion(t) == "5":
+            ev.append({"atencion": True}); return ["Ya le aviso a alguien del equipo de compras; le escribe por este mismo chat en breve. 🙋"], est, ev
+        return ["Disculpe, no le entendí bien 😅. Escriba *MENÚ* y le muestro en qué le puedo ayudar."], est, ev
 
     # ------------------------------------------------------------ clientes
+    t = _intencion(t) or t
     if t == "1":
-        if not catalogo: return ["Por ahora no tenemos productos publicados. Escriba *5* para hablar con una persona."], est, ev
+        if not catalogo: return ["En este momento no tengo productos publicados 😕. Si quiere, escriba *5* y le paso con una persona."], est, ev
         lin = [_linea(c, v) for c, v in list(catalogo.items())[:MAX_CATALOGO]]
-        mas = f"\nMostrando {MAX_CATALOGO} de {len(catalogo)} productos. Escriba el nombre de lo que busca, p. ej. *harina*." if len(catalogo) > MAX_CATALOGO else ""
-        return ["📦 *Catálogo*\n" + "\n".join(lin) + mas + "\nPara pedir: código y cantidad, p. ej. *" + next(iter(catalogo)) + " 2*"], est, ev
+        mas = (f"\n\nMostrando {MAX_CATALOGO} de {len(catalogo)} productos. Si busca algo en particular, escríbame el nombre (por ejemplo *harina*)."
+               if len(catalogo) > MAX_CATALOGO else "")
+        return ["📦 *Esto es lo que tenemos disponible:*\n" + "\n".join(lin) + mas
+                + "\n\nPara agregar, escríbame el código y la cantidad, por ejemplo *" + next(iter(catalogo)) + " 2*."], est, ev
     if t == "2":
         return [_carrito_texto(carrito, catalogo)[0]], est, ev
     if t in ("3", "confirmar", "confirmar pedido"):
-        if not carrito: return ["Su pedido está vacío. Escriba *1* para ver el catálogo."], est, ev
+        if not carrito: return ["Su pedido todavía está vacío. Escriba *1* para ver el catálogo o el nombre del producto que busca."], est, ev
         txt, total = _carrito_texto(carrito, catalogo)
         lineas = [{"codigo": c, "descripcion": catalogo.get(c, (c,))[0], "cantidad": str(q), "precio": str(catalogo.get(c, (c, 0))[1])} for c, q in carrito.items()]
         ev.append({"crear_pedido": {"tipo": "venta", "lineas": lineas, "total": str(total)}})
-        return ["✅ ¡Pedido recibido! Le avisaremos por aquí cuando sea confirmado.\n" + txt.split("\nEscriba")[0]], {}, ev
+        return ["✅ ¡Pedido recibido, muchas gracias! Ya se lo pasé al equipo; le aviso por aquí apenas lo confirmen.\n\n"
+                + txt.split("\n¿Lo confirmo?")[0].replace("Esto es lo que lleva hasta ahora:", "Su pedido:")], {}, ev
     if t == "4":
-        if not pedidos: return ["Aún no tiene pedidos con nosotros."], est, ev
-        return ["📋 *Sus pedidos*\n" + "\n".join(f"• N° {p[0]} · {p[1]} · Bs {bs(p[2])}" for p in pedidos[:10])], est, ev
+        if not pedidos: return ["Todavía no tiene pedidos con nosotros. ¿Hacemos el primero? Escriba *1* para ver el catálogo. 😊"], est, ev
+        return ["📋 *Así van sus pedidos:*\n" + "\n".join(f"• N° {p[0]} · {p[1]} · Bs {bs(p[2])}" for p in pedidos[:10])], est, ev
     if t == "5":
-        ev.append({"atencion": True}); return ["Un miembro del equipo le responderá en breve por este chat."], est, ev
-    if t in ("6", "presupuesto", "cotizar", "cotizacion", "pedir presupuesto"):
-        if not carrito: return ["Para su presupuesto agregue los productos (código y cantidad, p. ej. *" + (next(iter(catalogo)) if catalogo else "A001") + " 3*) y luego escriba *6*."], est, ev
+        ev.append({"atencion": True})
+        return ["¡Claro! Ya le avisé a alguien del equipo y le escribe por este mismo chat en breve. 🙋 Mientras tanto, aquí sigo si necesita algo."], est, ev
+    if t == "6":
+        if not carrito:
+            return ["Con gusto le preparo un presupuesto. Primero agregue los productos (por ejemplo *" + (next(iter(catalogo)) if catalogo else "A001")
+                    + " 3*) y luego escriba *6*."], est, ev
         lineas = [{"codigo": c, "descripcion": catalogo.get(c, (c,))[0], "cantidad": str(q)} for c, q in carrito.items()]
         ev.append({"crear_presupuesto": {"lineas": lineas}})
-        return ["📑 Estamos preparando su presupuesto."], {k: v for k, v in est.items() if k != "carrito"}, ev
+        return ["📑 Perfecto, le estoy preparando el presupuesto…"], {k: v for k, v in est.items() if k != "carrito"}, ev
     m = re.fullmatch(r"(?:acepto|aceptar|aprobado)\s*(?:presupuesto)?\s*#?\s*(\d{1,9})", t)
     if m:
         ev.append({"presupuesto_aceptado": int(m.group(1))})
-        return ["Gracias, registramos su aceptación."], est, ev
-    if t == "vaciar":
-        return ["Su pedido quedó vacío."], {k: v for k, v in est.items() if k != "carrito"}, ev
+        return ["¡Gracias! Dejamos registrada su aceptación."], est, ev
+    if t in ("vaciar", "borrar todo", "empezar de nuevo", "cancelar", "cancelar pedido"):
+        return ["Listo, vacié su pedido. Cuando quiera empezamos de nuevo. 👍"], {k: v for k, v in est.items() if k != "carrito"}, ev
     m = re.fullmatch(r"(?:quitar|eliminar|borrar)\s+(" + COD + ")", t)
     if m:
         cod = next((c for c in carrito if c.lower() == m.group(1)), None)
-        if cod is None: return [f"{m.group(1).upper()} no está en su pedido."], est, ev
+        if cod is None: return [f"Mmm, {m.group(1).upper()} no está en su pedido."], est, ev
         carrito.pop(cod)
-        return [f"Quitado {cod}.\n" + _carrito_texto(carrito, catalogo)[0]], {**est, "carrito": carrito}, ev
-    m = re.fullmatch(r"(?:pedir\s+)?(" + COD + r")\s*(?:x|\*|×)?\s*(\d+(?:[.,]\d+)?)", t)
-    if m:
-        cod = next((c for c in catalogo if c.lower() == m.group(1)), None)
-        cant = _dec(m.group(2))
-        if cod is None: return [f"No encontramos el código {m.group(1).upper()}. Escriba *1* para ver el catálogo."], est, ev
-        if cant is None: return ["La cantidad debe ser mayor que cero."], est, ev
+        return [f"Listo, saqué {cod}.\n\n" + _carrito_texto(carrito, catalogo)[0]], {**est, "carrito": carrito}, ev
+    PIDE = r"(?:(?:quiero|quisiera|dame|deme|necesito|me das|me da|me puede dar|agrega|agregame|agregue|pon|ponme|anota|anotame|mandame|envieme|pedir)\s+)?"
+    m = re.fullmatch(PIDE + r"(" + COD + r")\s*(?:x|\*|×)?\s*(\d+(?:[.,]\d+)?)(?:\s*(?:unidades|und|unid|u|bultos|cajas))?", t)
+    m2 = None if m else re.fullmatch(PIDE + r"(\d+(?:[.,]\d+)?)\s*(?:x|\*|×)?\s*(?:unidades de |und de |de |del |la |el |los |las )?(.{2,60})", t)
+    if m or m2:
+        cant = _dec(m.group(2) if m else m2.group(1))
+        cod = next((c for c in catalogo if c.lower() == (m.group(1) if m else m2.group(2).strip())), None)
+        if cod is None and m2:                                   # «quiero 3 harina pan»: se busca por nombre
+            hall = buscar(catalogo, m2.group(2))
+            if len(hall) > 1:
+                return [f"Tengo varias opciones para «{m2.group(2)}» 👇\n" + "\n".join(_linea(c, v) for c, v in hall[:8])
+                        + f"\n\n¿Cuál prefiere? Escríbame el código y la cantidad, por ejemplo *{hall[0][0]} {m2.group(1)}*."], est, ev
+            cod = hall[0][0] if hall else None
+        if cod is None:
+            q = (m.group(1) if m else m2.group(2)).upper()
+            return [f"No encontré «{q}» en el catálogo 🤔. Escriba *1* para verlo o pruebe con otra palabra."], est, ev
+        if cant is None: return ["¿Cuántas unidades necesita? La cantidad debe ser mayor que cero."], est, ev
         exist = catalogo[cod][2]
         if exist is not None and Decimal(str(exist)) < cant:
-            return [f"Solo tenemos {Decimal(str(exist)).normalize():f} unidades de {cod}."], est, ev
-        if cod not in carrito and len(carrito) >= MAX_CARRITO: return ["Su pedido alcanzó el máximo de productos."], est, ev
+            hay = Decimal(str(exist)).normalize()
+            return [f"Solo tenemos {hay:f} unidades de {cod} ({catalogo[cod][0]}) en este momento."
+                    + (f" ¿Le agrego las {hay:f}? Escriba *{cod} {hay:f}*." if hay > 0 else " Le aviso apenas llegue más.")], est, ev
+        if cod not in carrito and len(carrito) >= MAX_CARRITO: return ["Su pedido llegó al máximo de productos que puedo tomar por aquí. Confírmelo con *3* y hacemos otro."], est, ev
         carrito[cod] = format(cant.normalize(), "f")
-        return [f"Agregado: {cod} {catalogo[cod][0]} × {carrito[cod]}.\nEscriba *2* para ver su pedido o *3* para confirmarlo."], {**est, "carrito": carrito}, ev
-    m = re.fullmatch(r"(?:buscar|busco|tienen|hay|precio(?: de)?)\s+(.{2,60})", t)
+        sub = Decimal(str(catalogo[cod][1])) * cant
+        return [f"✅ Anotado: {carrito[cod]} × {catalogo[cod][0]} ({cod}) — Bs {bs(sub)}.\n¿Algo más? Cuando termine escriba *3* para confirmar o *2* para ver su pedido."],\
+            {**est, "carrito": carrito}, ev
+    m = re.fullmatch(r"(?:buscar|busco|tienen|tiene|hay|venden|precio(?: de)?|cuanto cuesta(?: el| la)?|cuanto sale(?: el| la)?|que precio tiene(?: el| la)?)\s+(.{2,60}?)\??", t)
     consulta = m.group(1) if m else (t if 3 <= len(t) <= 60 and re.search(r"[a-z]{3}", t) else None)
     if consulta:
         hall = buscar(catalogo, consulta)
         if hall:
-            return [f"🔎 *{consulta}*\n" + "\n".join(_linea(c, v) for c, v in hall) + ("\n(hay más: escriba una palabra adicional para afinar)" if len(hall) >= MAX_BUSQUEDA else "")
-                    + f"\nPara pedir: código y cantidad, p. ej. *{hall[0][0]} 2*"], est, ev
-        if m: return [f"No encontramos productos con «{consulta}». Pruebe con otra palabra o escriba *1* para ver el catálogo."], est, ev
-    return ["No entendí su mensaje. Escriba *MENÚ* para ver las opciones."], est, ev
+            return [("¡Sí, tenemos! 👇\n" if len(hall) > 0 else "") + "\n".join(_linea(c, v) for c, v in hall)
+                    + ("\n(Hay más opciones: agregue otra palabra para afinar la búsqueda.)" if len(hall) >= MAX_BUSQUEDA else "")
+                    + f"\n\nPara agregarlo escríbame el código y la cantidad, por ejemplo *{hall[0][0]} 2*."], est, ev
+        if m: return [f"No encontré nada con «{consulta}» 🤔. Pruebe con otra palabra o escriba *1* para ver el catálogo."], est, ev
+    return ["Disculpe, no le entendí bien 😅. Puede escribirme el nombre de un producto (por ejemplo *harina*), "
+            "o *MENÚ* para ver todo lo que puedo hacer."], est, ev

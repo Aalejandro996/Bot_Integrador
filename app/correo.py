@@ -29,11 +29,12 @@ def real() -> bool:
     return cfg.get("MAIL_BACKEND") == "brevo" and bool(cfg.get("BREVO_API_KEY")) or cfg.get("MAIL_BACKEND") == "smtp" and bool(cfg.get("SMTP_HOST"))
 
 
-def _mensaje(cfg, destino, asunto, cuerpo, boton=None, titulo=None, destacado=None, filas=(), nota=None, aviso=None):
+def _mensaje(cfg, destino, asunto, cuerpo, boton=None, titulo=None, destacado=None, filas=(), nota=None, aviso=None, html=None, texto=None):
+    """html/texto: correo ya armado con otra plantilla (p. ej. plantilla_correo.documento_html)."""
     parrafos = [p.strip() for p in cuerpo.split("\n\n") if p.strip()]
     titulo = titulo or asunto
-    txt = plantilla_correo.texto(titulo, parrafos, boton, destacado, filas, nota, cfg["APP_NOMBRE"]) + "\n" + plantilla_correo.PIE
-    htm = plantilla_correo.html(titulo, parrafos, cfg["APP_BASE_URL"], cfg["APP_NOMBRE"], cfg.get("APP_LEMA", ""), boton, destacado, filas, nota, aviso=aviso)
+    txt = (texto or plantilla_correo.texto(titulo, parrafos, boton, destacado, filas, nota, cfg["APP_NOMBRE"])) + "\n" + plantilla_correo.PIE
+    htm = html or plantilla_correo.html(titulo, parrafos, cfg["APP_BASE_URL"], cfg["APP_NOMBRE"], cfg.get("APP_LEMA", ""), boton, destacado, filas, nota, aviso=aviso)
     msg = EmailMessage()
     msg["From"], msg["To"], msg["Subject"] = cfg["MAIL_FROM"], destino, f"{asunto} · {cfg['APP_NOMBRE']}"
     msg.set_content(txt)

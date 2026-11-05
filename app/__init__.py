@@ -19,6 +19,8 @@ def create_app(config=None):
     db.init_app(app); csrf.init_app(app); limiter.init_app(app)
     app.extensions["cifrador"] = CifradorCampos(app.config["FIELD_ENCRYPTION_KEY"])
     from . import models  # noqa: F401  (registra tablas)
+    from . import interfaz
+    interfaz.registrar(app)
     from .web import auth, bp
     app.register_blueprint(auth.bp); app.register_blueprint(bp)
     if app.config.get("PRODUCCION"):

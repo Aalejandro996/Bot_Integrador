@@ -315,7 +315,7 @@ def resumen_presupuesto(pv: Presupuesto) -> str:
     det = "\n".join(f"• {l['codigo']} {l['descripcion']} × {l['cantidad']} = Bs {bs(l['monto'])}" for l in pv.lineas)
     return (f"📑 *Presupuesto N° {pv.numero}* (válido hasta {pv.valido_hasta.strftime('%d/%m/%Y')})\n{det}\n"
             f"Base: Bs {bs(pv.base)} · Exento: Bs {bs(pv.exento)} · IVA: Bs {bs(pv.iva)}\n*Total: Bs {bs(pv.total)}*\n"
-            f"Ver documento: {enlace('presupuesto', pv.empresa_id, pv.id)}\nPara aceptarlo responda *ACEPTO {pv.numero}*.")
+            f"Aquí puede verlo: {enlace('presupuesto', pv.empresa_id, pv.id)}\n\nSi le parece bien, respóndame *ACEPTO {pv.numero}* y lo procesamos.")
 
 
 def enlace(tipo, eid, oid) -> str:
@@ -368,8 +368,8 @@ def procesar_mensaje(eid, tel, nombre, texto, wamid, adjunto=None) -> list[str]:
     if adjunto:
         es_pdf = "pdf" in (adjunto.get("mime") or "") or adjunto.get("nombre", "").lower().endswith(".pdf")
         if es_pdf: return procesar_orden_pdf(eid, c, adjunto)
-        responder("Recibimos su archivo. Para procesar un pedido automáticamente envíe la orden de compra en *PDF* o escriba los productos "
-                  "(código y cantidad). Escriba *MENÚ* para ver las opciones.")
+        responder("¡Gracias, recibí su archivo! 📎 Para tomarle el pedido solo, envíeme la orden de compra en *PDF* o escríbame los productos "
+                  "(código y cantidad). Si prefiere, escriba *MENÚ* y le muestro las opciones.")
         return []
     import re
     m_rif = re.fullmatch(r"\s*(?:rif[:\s]*)?([VEJPGCvejpgc])\s*-?\s*(\d{8})\s*-?\s*(\d)\s*", texto or "")
@@ -377,12 +377,13 @@ def procesar_mensaje(eid, tel, nombre, texto, wamid, adjunto=None) -> list[str]:
         c.rif = f"{m_rif.group(1).upper()}-{m_rif.group(2)}-{m_rif.group(3)}"
         cp = cliente_por_rif(eid, c.rif)
         if cp: c.nombre, c.codigo_profit, c.tipo = cp.nombre, cp.codigo, "cliente" if c.tipo == "nuevo" else c.tipo
-        responder(f"Gracias. Registramos su RIF {c.rif}" + (f" ({cp.nombre})" if cp else "") + ".")
+        responder(f"¡Gracias! Ya registré su RIF {c.rif}" + (f" a nombre de {cp.nombre}" if cp else "") + ". Con eso podemos emitir su factura. 🧾")
         return []
     peds = [(p.numero, p.estado, p.total) for p in db.session.execute(select(Pedido).where(Pedido.empresa_id == eid, Pedido.contacto_id == c.id)
                                                                       .order_by(Pedido.id.desc()).limit(10)).scalars()]
     cat = catalogo(eid)
-    respuestas, estado, eventos = BOT.responder(texto, c.tipo, c.estado or {}, cat, e.razon_social, peds, (), cfg.bienvenida if cfg else None)
+    respuestas, estado, eventos = BOT.responder(texto, c.tipo, c.estado or {}, cat, e.razon_social, peds, (), cfg.bienvenida if cfg else None,
+                                                nombre=c.nombre)
     c.estado = estado
     for ev in eventos:
         if "tipo_contacto" in ev: c.tipo = ev["tipo_contacto"]
@@ -396,23 +397,23 @@ def procesar_mensaje(eid, tel, nombre, texto, wamid, adjunto=None) -> list[str]:
             p = Pedido(empresa_id=eid, numero=_siguiente(eid, Pedido), tipo=d["tipo"], contacto_id=c.id, telefono=tel, nombre=c.nombre, rif=c.rif,
                        codigo_cliente=c.codigo_profit, lineas=lineas, total=total, nota=d.get("nota") or None)
             db.session.add(p); db.session.flush()
-            respuestas = [r + f"\nN° de {'pedido' if p.tipo == 'venta' else 'oferta'}: *{p.numero}*" if i == 0 else r for i, r in enumerate(respuestas)]
+            respuestas = [r + f"\n\nSu número de {'pedido' if p.tipo == 'venta' else 'oferta'} es el *{p.numero}*, por si lo necesita." if i == 0 else r for i, r in enumerate(respuestas)]
             registrar("PEDIDO_WHATSAPP", f"{p.tipo} N°{p.numero} tel=…{tel[-4:]} total={total}", empresa_id=eid, usuario="bot"); N.pedido_nuevo(p)
         if "crear_presupuesto" in ev:
             lineas = lineas_con_monto(eid, ev["crear_presupuesto"]["lineas"], cat)
             if not lineas:
-                respuestas = ["Los productos que agregó ya no están disponibles. Escriba *1* para ver el catálogo actualizado."]; continue
+                respuestas = ["Uy, los productos que agregó se acaban de agotar 😕. Escriba *1* y le muestro lo que tenemos ahora."]; continue
             auto = (cfg.presupuesto_modo if cfg else "automatico") == "automatico"
             pv = crear_presupuesto(eid, c, lineas, "Enviado" if auto else "Borrador")
-            respuestas = [resumen_presupuesto(pv)] if auto else [f"📑 Recibimos su solicitud de presupuesto N° {pv.numero}. Un asesor lo revisará y se lo enviará por aquí."]
+            respuestas = [resumen_presupuesto(pv)] if auto else [f"📑 ¡Recibido! Su solicitud de presupuesto es la N° {pv.numero}. Un asesor lo revisa y se lo envía por aquí mismo."]
         if "presupuesto_aceptado" in ev:
             pv = db.session.execute(select(Presupuesto).where(Presupuesto.empresa_id == eid, Presupuesto.numero == ev["presupuesto_aceptado"],
                                                               Presupuesto.contacto_id == c.id).with_for_update()).scalar_one_or_none()
             if pv is None or pv.estado not in ("Enviado", "Borrador"):
-                respuestas = [f"No encontramos un presupuesto N° {ev['presupuesto_aceptado']} pendiente a su nombre."]
+                respuestas = [f"No encuentro un presupuesto N° {ev['presupuesto_aceptado']} pendiente a su nombre. ¿Puede revisar el número?"]
             else:
                 pv.estado = "Aceptado"; registrar("PRESUPUESTO_ACEPTADO", f"N°{pv.numero}", empresa_id=eid, usuario="bot"); N.presupuesto_aceptado(pv)
-                respuestas = [f"✅ Presupuesto N° {pv.numero} aceptado. Le confirmaremos la factura y la entrega por aquí."]
+                respuestas = [f"✅ ¡Excelente! Presupuesto N° {pv.numero} aceptado. Le confirmamos la factura y la entrega por aquí mismo."]
     return [r for r in respuestas if responder(r)]
 
 
@@ -444,7 +445,7 @@ def procesar_orden_pdf(eid, c: Contacto, adjunto) -> list[str]:
                    nombre=nombre, rif=rif, codigo_cliente=cp.codigo if cp else None, lineas=[], total=0, referencia_cliente=leido["referencia"],
                    nota=("No identificado: " + "; ".join(leido["no_identificadas"]))[:2000] or "PDF sin productos reconocidos")
         db.session.add(p); db.session.flush(); N.pedido_nuevo(p)
-        responder("Recibimos su orden de compra, pero no identificamos productos de nuestro catálogo. Un asesor la revisará y le escribirá. "
+        responder("Recibí su orden de compra, pero no logré reconocer los productos de nuestro catálogo. Un asesor la revisa y le escribe en breve. "
                   "Si prefiere, escriba *1* para ver el catálogo con los códigos.")
         return []
     lineas, faltan = LP.despachable(leido["lineas"], cat)
@@ -457,14 +458,14 @@ def procesar_orden_pdf(eid, c: Contacto, adjunto) -> list[str]:
     registrar("ORDEN_PDF", f"pedido N°{p.numero} lineas={len(lineas)} faltantes={len(faltan)} ref={leido['referencia'] or ''}", empresa_id=eid, usuario="bot"); N.pedido_nuevo(p)
     doc = documento_pedido(p)
     detalle = "\n".join(f"• {l['codigo']} {l['descripcion']} × {l['cantidad']}" + (f" (pidió {l['solicitado']})" if l["solicitado"] != l["cantidad"] else "") for l in lineas)
-    partes = [f"✅ Recibimos su orden de compra{(' N° ' + leido['referencia']) if leido['referencia'] else ''}."]
+    partes = [f"✅ ¡Recibí su orden de compra{(' N° ' + leido['referencia']) if leido['referencia'] else ''}, gracias!"]
     if lineas:
         partes += [f"📄 *Orden de venta N° {p.numero}*\n{detalle}", f"*Total: Bs {bs(doc['total'])}* (IVA incluido)"]
-    if faltan: partes.append("⚠️ No tenemos todo lo solicitado: " + "; ".join(faltan) + ".")
-    if leido["no_identificadas"]: partes.append("❓ No identificamos: " + "; ".join(leido["no_identificadas"][:5]) + ". Un asesor le confirmará.")
+    if faltan: partes.append("⚠️ Hay algunos productos que no tenemos completos en este momento: " + "; ".join(faltan) + ".")
+    if leido["no_identificadas"]: partes.append("❓ No logré identificar: " + "; ".join(leido["no_identificadas"][:5]) + ". Un asesor se lo confirma.")
     if lineas:
-        partes.append(f"Ver documento: {enlace('pedido', eid, p.id)}")
+        partes.append(f"Aquí puede ver el documento: {enlace('pedido', eid, p.id)}")
         partes.append(cfg.instrucciones_pago or f"Puede pagar y retirar en nuestra oficina: {e.direccion or e.razon_social}" + (f" · Tel. {e.telefono}" if e.telefono else "") + ".")
-        partes.append("Su factura fiscal se emitirá al confirmar el despacho." if rif else "Para emitir su factura fiscal responda con su *RIF* (J-12345678-9).")
+        partes.append("Su factura fiscal se emitirá al confirmar el despacho." if rif else "Para emitir su factura fiscal, respóndame con su *RIF* (por ejemplo J-12345678-9).")
     responder("\n\n".join(partes))
     return partes

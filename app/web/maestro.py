@@ -4,7 +4,7 @@ import re
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
-from flask import current_app, flash, g, redirect, request, url_for
+from flask import abort, current_app, flash, g, redirect, request, url_for
 from sqlalchemy import func, select
 
 from .. import notificaciones as N
@@ -58,7 +58,7 @@ def maestro():
     intervalo = p.intervalo_min if p else 15
     filas = _monitor()
     tarde = lambda f: f["p"] and f["p"].activo and (f["p"].ultima_sync is None or ahora() - f["p"].ultima_sync > timedelta(minutes=2 * intervalo + 5))
-    alertas = [dict(cells=[f["e"].razon_social, "WhatsApp " + OW.ESTADOS.get(f["w"].sesion_estado, "sin vincular").lower()]) for f in filas
+    alertas = [dict(cells=[f["e"].razon_social, "WhatsApp " + (OW.ESTADOS.get(f["w"].sesion_estado, "sin vincular") if f["w"] else "sin vincular").lower()]) for f in filas
                if f["e"].activa and (f["w"] is None or f["w"].sesion_estado != "ready")]
     alertas += [dict(cells=[f["e"].razon_social, "Profit: " + ("sin foto aún" if f["p"].ultima_sync is None else "foto " + atraso(f["p"].ultima_sync, intervalo))
                             + (f" · {f['p'].ultimo_error[:150]}" if f["p"].ultimo_estado == "error" and f["p"].ultimo_error else "")]) for f in filas if tarde(f)]
@@ -68,9 +68,11 @@ def maestro():
         try: SV.pasarela().salud(); ow_txt = "En línea"
         except ErrorWhatsapp: ow_txt = "Sin respuesta"
     return pagina("Monitoreo del bot", [
-        dict(kpis=[("Pasarela WhatsApp", ow_txt), ("API Profit", ("Activa" if p.activa else "Pausada") if p else "Sin configurar"), ("Empresas", len(filas)),
-                   ("WhatsApp conectados", sum(1 for f in filas if f["w"] and f["w"].sesion_estado == "ready")),
-                   ("Mensajes 24 h", sum(f["recibidos"] + f["enviados"] for f in filas)), ("Alertas", len(alertas))]),
+        dict(kpis=[("Pasarela WhatsApp", ow_txt, "OpenWA propia"), ("API Profit", ("Activa" if p.activa else "Pausada") if p else "Sin configurar",
+                    f"Cada {intervalo} min"), ("Empresas", len(filas), f"{sum(1 for f in filas if f['e'].activa)} activas"),
+                   ("WhatsApp conectados", sum(1 for f in filas if f["w"] and f["w"].sesion_estado == "ready"), f"de {len(filas)} empresas"),
+                   ("Mensajes 24 h", sum(f["recibidos"] + f["enviados"] for f in filas), f"{sum(f['fallidos'] for f in filas)} fallidos"),
+                   ("Alertas", len(alertas), "Todo en orden" if not alertas else "Requieren atención")]),
         dict(titulo="Alertas", tabla=dict(cols=["Empresa", "Qué pasa"], filas=alertas or [dict(cells=["—", "Todo en orden ✅"])])),
         dict(titulo="Monitoreo por empresa", tabla=dict(ancha=True, cols=["Empresa", "WhatsApp", "Bot", "Recibidos 24 h", "Enviados 24 h", "Fallidos 24 h", "Último mensaje",
                                                                          "Pedidos 24 h", "Piden persona", "Profit: última foto", "Artículos", "Conector"], num=[3, 4, 5, 7, 8, 10], filas=[
@@ -249,3 +251,74 @@ def maestro_usuarios():
     return pagina("Maestros", [dict(tabla=dict(cols=["Usuario", "Correo", "Estado", "Último acceso"], filas=[
         dict(cells=[u.username, u.email or "—", "Activo" if u.password_hash else "Sin activar", hora(u.ultimo_acceso)]) for u in us])),
         dict(titulo="Invitar Maestro", form=dict(action=request.path, boton="Crear enlace", campos=[campo("username", "Usuario"), campo("email", "Correo", "email", req=False)]))])
+
+
+# ====================================================================== correo: estado, plantillas y envío de prueba
+def _muestras():
+    """Plantillas de correo con datos de ejemplo (no tocan la base de datos)."""
+    from datetime import date
+    from types import SimpleNamespace
+    from .. import plantilla_correo as PC
+    cfg = current_app.config
+    base, nombre, lema = cfg["APP_BASE_URL"], cfg["APP_NOMBRE"], cfg.get("APP_LEMA", "")
+    em = SimpleNamespace(razon_social="General de Suministros Orituco, C.A.", rif="J-12345678-0", direccion="Altagracia de Orituco", telefono="0238-1234567")
+    doc = dict(titulo="Orden de venta", numero="OV-000001", fecha=date.today(), estado="Nuevo", nota="Su orden de compra: 9001.",
+               cliente=dict(nombre="COMERCIAL ORITUCO CA", rif="J-11111111-1", codigo="C001", direccion="Av. Principal, Altagracia", telefono="584147778899"),
+               lineas=[dict(codigo="HAR-01", descripcion="HARINA PAN 1KG", cantidad=3, precio="45.50", monto="136.50", alicuota="G"),
+                       dict(codigo="LEC-01", descripcion="LECHE COMPLETA 1L", cantidad=2, precio="60.00", monto="120.00", alicuota="E")],
+               exento="120.00", base="136.50", iva="21.84", total="278.34")
+    h = lambda *a, **k: PC.html(*a, base, nombre, lema, **k)
+    return {
+        "activacion": ("Activación de cuenta", h("Active su cuenta", ["Hola:", "Se creó su cuenta de General de Suministros Orituco, C.A. en Surtia.",
+                       "Con el botón creará su contraseña y activará la verificación en dos pasos."], boton=("Crear mi contraseña", base + "/activar/ejemplo"),
+                       filas=[("Usuario", "orituco"), ("Rol", "Administrador"), ("Vigencia", "72 horas, un solo uso")], aviso=("info", "Activación de cuenta"),
+                       nota="Si no esperaba este correo, ignórelo. Surtia nunca le pedirá su contraseña ni sus códigos.")),
+        "seguridad": ("Nuevo inicio de sesión", h("Nuevo inicio de sesión", ["Se inició sesión en su cuenta.", "Si fue usted, no tiene que hacer nada."],
+                      filas=[("Usuario", "orituco"), ("Fecha", "05/11/2026 09:14 am"), ("Dirección IP", "190.202.0.10")], aviso=("info", "Seguridad de la cuenta"),
+                      boton=("Abrir Surtia", base + "/login"))),
+        "pedido": ("Pedido nuevo (documento)", PC.documento_html(doc, em, base, nombre, lema, intro="COMERCIAL ORITUCO CA hizo un pedido por WhatsApp. Revíselo y cárguelo en Profit Plus.",
+                   boton=("Abrir el pedido en Surtia", base + "/pedidos/1"), aviso=("info", "Pedido nuevo"))),
+        "presupuesto": ("Presupuesto aceptado (documento)", PC.documento_html(dict(doc, titulo="Presupuesto", numero="P-000001", estado="Aceptado", nota=None,
+                        valido_hasta=date.today()), em, base, nombre, lema, intro="COMERCIAL ORITUCO CA aceptó el presupuesto por WhatsApp.",
+                        boton=("Abrir el presupuesto en Surtia", base + "/presupuestos/1"), aviso=("info", "Presupuesto aceptado"))),
+        "atencion": ("Cliente pide una persona", h("Un cliente pide hablar con una persona", ["COMERCIAL ORITUCO CA pidió atención de una persona en el WhatsApp de la empresa."],
+                     filas=[("Cliente", "COMERCIAL ORITUCO CA"), ("WhatsApp", "+584147778899")], boton=("Responder la conversación", base + "/conversaciones"),
+                     aviso=("alerta", "Atención humana"))),
+        "desconectado": ("WhatsApp desconectado", h("El WhatsApp del bot se desconectó", ["El número de la empresa dejó de estar vinculado: el bot NO está respondiendo.",
+                         "Entre a Surtia → WhatsApp y vuelva a escanear el código QR."], filas=[("Empresa", em.razon_social), ("Estado", "disconnected")],
+                         boton=("Volver a vincular", base + "/whatsapp"), aviso=("peligro", "Bot sin conexión"))),
+    }
+
+
+@bp.route("/maestro/correo", methods=["GET", "POST"])
+@requiere("Maestro")
+def maestro_correo():
+    from .. import correo
+    cfg = current_app.config
+    if request.method == "POST":
+        destino = (F.get("destino") or "").strip()
+        if not correo.valido(destino): flash("Correo de destino inválido.")
+        elif correo.enviar_seguro(destino, "Correo de prueba", "Si recibe este mensaje, el envío de correos de Surtia está bien configurado.",
+                                  filas=[("Método", cfg["MAIL_BACKEND"]), ("Remitente", cfg["MAIL_FROM"])], aviso=("info", "Prueba")):
+            registrar("CORREO_PRUEBA", destino); db.session.commit()
+            flash(f"Correo de prueba enviado a {destino}." if correo.real() else "Modo consola: el correo se escribió en el log (configure BREVO_API_KEY para enviarlo de verdad).")
+        else: flash("No se pudo enviar: revise BREVO_API_KEY, el remitente verificado en Brevo o los datos SMTP.")
+        return redirect(request.url)
+    modo = {"brevo": "Brevo (API)", "smtp": "SMTP", "console": "Consola (no sale)"}.get(cfg["MAIL_BACKEND"], cfg["MAIL_BACKEND"])
+    return pagina("Correo", [
+        dict(kpis=[("Envío", modo), ("Estado", "Activo" if correo.real() else "Sin configurar"), ("Remitente", cfg["MAIL_FROM"].split("<")[-1].rstrip(">"))]),
+        dict(titulo="Plantillas", nota="Así se ven los correos que envía Surtia (datos de ejemplo). Se abren en una pestaña nueva.",
+             enlaces=[dict(url=url_for("web.maestro_correo_vista", nombre=k), texto=v[0], icono="correo", nueva=True) for k, v in _muestras().items()]),
+        dict(titulo="Enviar un correo de prueba", abierto=True, form=dict(action=request.path, boton="Enviar prueba", campos=[
+            campo("destino", "Correo de destino", "email", valor=g.usuario.email or cfg.get("MAESTRO_EMAIL") or "")]))])
+
+
+@bp.route("/maestro/correo/vista/<nombre>")
+@requiere("Maestro")
+def maestro_correo_vista(nombre):
+    m = _muestras().get(nombre)
+    if m is None: abort(404)
+    r = current_app.response_class(m[1], mimetype="text/html")
+    # el correo lleva estilos en línea (así lo exigen los clientes de correo): solo esta vista los permite, sin scripts
+    r.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    return r

@@ -54,3 +54,15 @@ def test_presupuesto_por_el_bot():
     r, est, ev = B.responder("presupuesto", "cliente", est, CAT, "Bodega")
     assert ev == [{"crear_presupuesto": {"lineas": [{"codigo": "A001", "descripcion": "Harina PAN 1kg", "cantidad": "4"}]}}] and "carrito" not in est
     assert B.responder("ACEPTO 12", "cliente", {}, CAT, "Bodega")[2] == [{"presupuesto_aceptado": 12}]
+
+
+def test_conversacion_natural():
+    hola = B.responder("Buenas tardes", "cliente", {}, CAT, "Bodega", nombre="maría pérez")[0][0]
+    assert hola.startswith("¡Hola, María!") and "asistente virtual" in hola
+    assert "gusto" in B.responder("muchas gracias", "cliente", {}, CAT, "Bodega")[0][0]
+    r, est, _ = B.responder("quiero 3 harina pan", "cliente", {}, CAT, "Bodega")
+    assert est["carrito"] == {"A001": "3"} and "Anotado" in r[0]
+    r, _, ev = B.responder("quiero hablar con una persona", "cliente", {}, CAT, "Bodega")
+    assert ev == [{"atencion": True}]
+    assert B.responder("catalogo", "cliente", {}, CAT, "Bodega")[0][0].startswith("📦")
+    assert "le entendí" in B.responder("zxq", "cliente", {}, CAT, "Bodega")[0][0]

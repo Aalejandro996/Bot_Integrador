@@ -103,16 +103,25 @@ def _bs(v) -> str:
     return f"{float(v or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def _documento(d, eid, intro, boton, aviso):
+    """Correo con el documento completo (plantilla documento_html) para el personal de la empresa."""
+    from . import plantilla_correo as PC
+    cfg, em = current_app.config, db.session.get(Empresa, eid)
+    return dict(html=PC.documento_html(d, em, cfg["APP_BASE_URL"], cfg["APP_NOMBRE"], cfg.get("APP_LEMA", ""), intro=intro, boton=boton, aviso=aviso),
+                texto=PC.documento_texto(d, em, intro, boton, cfg["APP_NOMBRE"]))
+
+
 def pedido_nuevo(p):
     tipo = "Orden de venta (PDF)" if p.origen == "whatsapp_pdf" else ("Pedido" if p.tipo == "venta" else "Solicitud de oferta")
     filas = [("Número", f"N° {p.numero}"), ("Tipo", tipo), ("Cliente", p.nombre or "—"), ("WhatsApp", f"+{p.telefono}"),
              ("RIF", p.rif or "—"), ("Productos", len(p.lineas or [])), ("Total", f"Bs {_bs(p.total)}")]
     if p.referencia_cliente: filas.append(("Orden de compra del cliente", p.referencia_cliente))
-    encolar(correos_empresa(p.empresa_id, ("Administrador", "Operador")), f"{tipo} N° {p.numero} por WhatsApp",
-            f"El asistente de WhatsApp recibió un {tipo.lower()} de {p.nombre or 'un cliente'}.\n\n"
-            "Revíselo, confirme la existencia y cárguelo en Profit Plus para emitir la factura.",
-            filas=filas, boton=("Ver el pedido", _url("web.pedido", pid=p.id)), aviso=("info", "Pedido nuevo"),
-            nota=p.nota[:300] if p.nota else None)
+    from .servicios import documento_pedido
+    intro = (f"{p.nombre or 'Un cliente'} hizo un {tipo.lower()} por WhatsApp (+{p.telefono}). Revíselo, confirme la existencia "
+             "y cárguelo en Profit Plus para emitir la factura.")
+    boton = ("Abrir el pedido en Surtia", _url("web.pedido", pid=p.id))
+    encolar(correos_empresa(p.empresa_id, ("Administrador", "Operador")), f"{tipo} N° {p.numero} por WhatsApp", intro,
+            filas=filas, boton=boton, **_documento(documento_pedido(p), p.empresa_id, intro, boton, ("info", "Pedido nuevo")))
 
 
 def atencion(c):
@@ -123,10 +132,11 @@ def atencion(c):
 
 
 def presupuesto_aceptado(pv):
-    encolar(correos_empresa(pv.empresa_id, ("Administrador", "Operador")), f"Presupuesto N° {pv.numero} aceptado",
-            f"{pv.cliente_nombre or 'El cliente'} aceptó el presupuesto por WhatsApp. Ya puede facturarlo en Profit Plus y coordinar la entrega.",
-            filas=[("Número", f"N° {pv.numero}"), ("Cliente", pv.cliente_nombre or "—"), ("Total", f"Bs {_bs(pv.total)}")],
-            boton=("Ver el presupuesto", _url("web.presupuesto", pid=pv.id)), aviso=("info", "Presupuesto aceptado"))
+    from .servicios import documento_presupuesto
+    intro = f"{pv.cliente_nombre or 'El cliente'} aceptó el presupuesto por WhatsApp. Ya puede facturarlo en Profit Plus y coordinar la entrega."
+    boton = ("Abrir el presupuesto en Surtia", _url("web.presupuesto", pid=pv.id))
+    encolar(correos_empresa(pv.empresa_id, ("Administrador", "Operador")), f"Presupuesto N° {pv.numero} aceptado", intro, boton=boton,
+            **_documento(documento_presupuesto(pv), pv.empresa_id, intro, boton, ("info", "Presupuesto aceptado")))
 
 
 ESTADOS_CAIDA = ("disconnected", "failed", "action_required", "logged_out", "expired")

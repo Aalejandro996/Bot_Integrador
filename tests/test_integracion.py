@@ -185,7 +185,7 @@ def test_recorrido_completo(app):
     for para in ("ventas@orituco.test", "admin@orituco.test"):
         a = asuntos(para)
         assert "Pedido N° 1 por WhatsApp · Surtia" in a and "Presupuesto N° 1 aceptado · Surtia" in a and "Un cliente pide hablar con una persona · Surtia" in a, a
-    assert "Bs 256,50" in [m.get_content() for m in correo.ENVIADOS if "Pedido N° 1" in m["Subject"]][0]
+    assert "TOTAL: Bs 278,34" in [m.get_content() for m in correo.ENVIADOS if "Pedido N° 1" in m["Subject"]][0]
     assert not [m for m in correo.ENVIADOS if "Pedido" in m["Subject"] and m["To"] == "soporte@gigadevs.test"]   # el Maestro no ve pedidos
     # orden de compra en PDF → orden de venta con lo disponible
     from app import servicios as SV
@@ -211,6 +211,7 @@ def test_recorrido_completo(app):
     # --- aislamiento: otra empresa no ve nada de la primera
     r = root.post("/maestro/empresas", data={"accion": "crear", "razon_social": "Otra CA", "rif": "J-22222222-2", "username": "otra"}, follow_redirects=True)
     otra, _ = _activar(app, _enlace(r))
+    assert "Otra CA" in root.get("/maestro").get_data(as_text=True)               # empresa sin WhatsApp: el monitoreo no se cae
     assert otra.get(f"/pedidos/{pid}").status_code == 404 and "COMERCIAL" not in otra.get("/pedidos").get_data(as_text=True)
     cid1 = _uno(app, "SELECT id FROM contactos WHERE empresa_id=:e", e=eid)
     assert otra.get(f"/conversaciones/{cid1}").status_code == 404

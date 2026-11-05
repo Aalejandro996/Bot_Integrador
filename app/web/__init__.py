@@ -19,8 +19,9 @@ def oculto(v, n="accion"):
     return campo(n, "", "hidden", valor=v)
 
 
-def pagina(titulo, secciones, acciones=None, pestanas=None):
-    return render_template("pagina.html", titulo=titulo, empresa=g.get("empresa"), secciones=secciones, acciones=acciones or [], pestanas=pestanas or [])
+def pagina(titulo, secciones, acciones=None, pestanas=None, subtitulo=None):
+    return render_template("pagina.html", titulo=titulo, empresa=g.get("empresa"), secciones=secciones, acciones=acciones or [], pestanas=pestanas or [],
+                           subtitulo=subtitulo)
 
 
 def intentar(fn, ok):

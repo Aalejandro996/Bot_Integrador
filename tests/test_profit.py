@@ -104,8 +104,8 @@ def test_bot_busca_por_nombre_en_catalogos_grandes():
     r, _, _ = B.responder("buscar harina pan", "cliente", {}, CAT, "Orituco")
     assert "HAR-01" in r[0] and "HAR-02" not in r[0]
     assert "agotado" in B.responder("arroz", "cliente", {}, CAT, "Orituco")[0][0]
-    assert "No encontramos productos con «pintura»" in B.responder("buscar pintura", "cliente", {}, CAT, "Orituco")[0][0]
-    assert "No entendí" in B.responder("qwzx", "cliente", {}, CAT, "Orituco")[0][0]
+    assert "No encontré nada con «pintura»" in B.responder("buscar pintura", "cliente", {}, CAT, "Orituco")[0][0]
+    assert "no le entendí" in B.responder("qwzx", "cliente", {}, CAT, "Orituco")[0][0]
     _, est, _ = B.responder("har-01 3", "cliente", {}, CAT, "Orituco")
     assert est["carrito"] == {"HAR-01": "3"}
     cat = {"B/2": ("Aceite", Decimal("10"), Decimal("5"))}

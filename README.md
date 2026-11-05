@@ -30,6 +30,8 @@ Plantilla HTML propia con estilos en línea y versión de texto (`app/plantilla_
 - **Seguridad de la cuenta:** nuevo inicio de sesión (IP y navegador), cuenta bloqueada, contraseña cambiada, MFA activado.
 - **Operación** (al correo de la empresa + administradores y operadores): pedido u orden de venta nueva, cliente que pide una
   persona, presupuesto aceptado, WhatsApp desconectado (también al Maestro) y reconectado.
+- Pedido nuevo y presupuesto aceptado llevan el **documento completo** (plantilla `documento_html`: líneas, IVA y total).
+- Consola Maestro → **Correo**: estado del envío, vista previa de cada plantilla y botón de correo de prueba.
 - Los avisos se envían **después** de guardar en la base y en segundo plano: no demoran al bot. Nunca llevan conversaciones.
 
 ## Quién hace qué

@@ -44,13 +44,18 @@ def inicio():
     pasos = [("Vincular el WhatsApp de la empresa (código QR)", "hecho" if cfg and cfg.sesion_estado == "ready" else "pendiente"),
              ("Activar la integración con Profit Plus", "hecho" if con else "pendiente"),
              ("Instalar el conector en el servidor de Profit (primera foto recibida)", "hecho" if con and con.ultima_sync else "pendiente")]
-    secs = [dict(kpis=[("WhatsApp", OW.ESTADOS.get(cfg.sesion_estado, "Sin vincular") if cfg else "Sin vincular"),
-                       ("Profit: última foto", atraso(con.ultima_sync, plat.intervalo_min if plat else 15) if con else "Sin conectar"),
-                       ("Pedidos nuevos", nuevos), ("Mensajes 24 h", msgs), ("Piden una persona", len(atencion))])]
+    pedidos_hoy = cuenta(select(func.count()).select_from(Pedido).where(Pedido.empresa_id == eid, Pedido.creado_en > desde))
+    secs = [dict(kpis=[("WhatsApp", OW.ESTADOS.get(cfg.sesion_estado, "Sin vincular") if cfg else "Sin vincular",
+                        ("+" + cfg.numero_visible) if cfg and cfg.numero_visible else "Número de la empresa"),
+                       ("Profit: última foto", atraso(con.ultima_sync, plat.intervalo_min if plat else 15) if con else "Sin conectar",
+                        f"{con.n_articulos} artículos" if con and con.ultima_sync else "Catálogo e inventario"),
+                       ("Pedidos nuevos", nuevos, f"{pedidos_hoy} en las últimas 24 h"), ("Mensajes 24 h", msgs, "Recibidos y enviados"),
+                       ("Piden una persona", len(atencion), "Esperan respuesta" if atencion else "Nadie en espera")])]
     if any(e != "hecho" for _, e in pasos): secs.append(dict(titulo="Puesta en marcha", pasos=pasos))
     secs.append(dict(titulo="Clientes que pidieron hablar con una persona", tabla=dict(cols=["Contacto", "Teléfono", "Último mensaje"], filas=[
         dict(url=url_for("web.conversacion", cid=c.id), cells=[c.nombre or "—", "+" + c.telefono, hora(c.ultimo_mensaje)]) for c in atencion])))
-    return pagina("Panel", secs)
+    return pagina(f"Hola, {(g.usuario.nombre or g.usuario.username).split()[0].capitalize()} 👋", secs,
+                  subtitulo=f"Así va hoy el asistente de WhatsApp de {g.empresa.razon_social}")
 
 
 # ====================================================================== WhatsApp
@@ -250,7 +255,12 @@ def pedidos():
             registrar("PEDIDO_ESTADO", f"N°{p.numero} → {p.estado}")
             db.session.commit()
             if F.get("avisar") == "1" and p.telefono:
-                texto = f"📦 Su pedido N° {p.numero} está *{p.estado.lower()}*." + (f"\n{F['mensaje'].strip()[:500]}" if (F.get("mensaje") or "").strip() else "")
+                frase = {"Confirmado": f"✅ ¡Buenas noticias! Su pedido N° {p.numero} ya está *confirmado* y lo estamos preparando.",
+                         "Despachado": f"🚚 ¡Su pedido N° {p.numero} va en camino! Ya fue *despachado*.",
+                         "Facturado en Profit": f"🧾 Listo: su pedido N° {p.numero} ya está *facturado*. ¡Gracias por su compra!",
+                         "Rechazado": f"Lamentamos informarle que no podemos atender su pedido N° {p.numero} en este momento. Si quiere, escríbanos y le ayudamos a buscar alternativas.",
+                         }.get(p.estado, f"📦 Su pedido N° {p.numero} está *{p.estado.lower()}*.")
+                texto = frase + (f"\n\n{F['mensaje'].strip()[:500]}" if (F.get("mensaje") or "").strip() else "")
                 SV.enviar_wa(eid, p.telefono, texto); db.session.commit()
         intentar(hacer, "Pedido actualizado")
         return redirect(request.url)
@@ -259,7 +269,8 @@ def pedidos():
     if filtro in ESTADOS_PEDIDO: q = q.where(Pedido.estado == filtro)
     ps = db.session.execute(q.order_by(Pedido.id.desc()).limit(300)).scalars().all()
     cuenta = lambda e: db.session.execute(select(func.count()).select_from(Pedido).where(Pedido.empresa_id == eid, Pedido.estado == e)).scalar() or 0
-    secs = [dict(kpis=[(e, cuenta(e)) for e in ("Nuevo", "Confirmado", "Despachado", "Facturado en Profit")]),
+    sub_ = {"Nuevo": "Por revisar", "Confirmado": "Listos para despachar", "Despachado": "Falta facturar en Profit", "Facturado en Profit": "Cerrados"}
+    secs = [dict(kpis=[(e, cuenta(e), sub_[e]) for e in ("Nuevo", "Confirmado", "Despachado", "Facturado en Profit")]),
             dict(titulo="Pedidos por WhatsApp", nota="Cargue cada pedido en Profit Plus con el código de cliente y emita allí la factura; luego márquelo «Facturado en Profit».",
                  tabla=dict(cols=["N°", "Fecha", "Cliente", "Cód. Profit", "Productos", "Total ref. Bs", "Estado", "Origen"], num=[5], filas=[
                      dict(url=url_for("web.pedido", pid=p.id), cells=[p.numero, hora(p.creado_en), p.nombre or ("+" + (p.telefono or "")), p.codigo_cliente or "—",
@@ -270,7 +281,7 @@ def pedidos():
             campo("pid", "Pedido", "select", opciones=[(p.id, f"N° {p.numero} · {p.nombre or p.telefono}") for p in ps if p.estado not in ("Facturado en Profit", "Rechazado")][:100]),
             campo("estado", "Nuevo estado", "select", opciones=[(e, e) for e in ESTADOS_PEDIDO]),
             campo("avisar", "¿Avisar por WhatsApp?", "select", opciones=[("1", "Sí"), ("0", "No")]), campo("mensaje", "Mensaje adicional", req=False)])))
-    return pagina("Pedidos", secs)
+    return pagina("Pedidos", secs, subtitulo="Lo que sus clientes pidieron por WhatsApp, listo para cargar en Profit Plus")
 
 
 @bp.route("/pedidos/<int:pid>")
