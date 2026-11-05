@@ -1,4 +1,4 @@
-# Contax Bot · Profit Plus — General de Suministros Orituco
+# Pedyra · Profit Plus — General de Suministros Orituco
 
 Bot de WhatsApp conectado **en solo lectura** a Profit Plus. Gigadevs Corp. Repositorio **privado**.
 
@@ -7,17 +7,23 @@ El bot arma pedidos, envía presupuestos, lee órdenes de compra en PDF y deja *
 La factura fiscal se sigue emitiendo en Profit Plus: nada se escribe ni se envía a Profit.
 
 ```
- Red del cliente (Windows)                               Render (proyecto «Bot Profit Orituco», Ohio)
+ Red del cliente (Windows)                               Render (proyecto «Pedyra Orituco», Ohio)
  ┌─────────────────────────────┐  HTTPS 443, solo SALIDA  ┌──────────────────────┐   red privada   ┌──────────────┐
- │ SQL Server (Profit Plus)    │  foto firmada (HMAC)     │ bot-profit-orituco   │◄──────────────►│ bot-whatsapp │◄─► WhatsApp
+ │ SQL Server (Profit Plus)    │  foto firmada (HMAC)     │ pedyra-orituco   │◄──────────────►│ pedyra-whatsapp │◄─► WhatsApp
  │   ▲ SELECT (usuario lectura)│ ───────────────────────► │ (web, consola, API)  │                │ (OpenWA, disco)│
- │ contax_profit.exe (tarea)   │ ◄──── configuración ──── │          │           │                └──────────────┘
- └─────────────────────────────┘                          │   bot-profit-db (PostgreSQL, sin acceso desde Internet)
+ │ pedyra_conector.exe (tarea)   │ ◄──── configuración ──── │          │           │                └──────────────┘
+ └─────────────────────────────┘                          │   pedyra-db (PostgreSQL, sin acceso desde Internet)
 ```
+
+## Marca
+**Pedyra™** (nombre, logotipo e ícono originales de Gigadevs Corp) — `app/static/marca/`: `logo.svg` (fondo claro), `logo-blanco.svg`
+(fondo oscuro), `logo-icono.svg`, `favicon.ico`, `apple-touch-icon.png`, `icono-192.png`, `icono-512.png`.
+Paleta: tinta `#0F1B2D`, naranja `#FF9A1F`, azul de enlaces `#0B6BCB`, fondo `#F2F4F7`. Se usa **™** hasta obtener el registro
+ante el SAPI (Venezuela); solo entonces puede usarse **®**.
 
 ## Quién hace qué
 - **Cliente (Administrador):** WhatsApp (vincula su número con QR, opciones del bot), Profit Plus (activa el conector, descarga
-  `contax_profit.ini`, elige almacenes, lista de precios y existencia), Usuarios (invita operadores).
+  `pedyra_conector.ini`, elige almacenes, lista de precios y existencia), Usuarios (invita operadores).
 - **Cliente (Operador y Administrador):** Panel, Pedidos (cambiar estado y avisar por WhatsApp, exportar CSV para cargar en Profit),
   Conversaciones (responder, «pidió una persona»), Presupuestos.
 - **Gigadevs (Maestro):** Monitoreo (estado del WhatsApp, mensajes recibidos/enviados/fallidos 24 h, pedidos, última foto de Profit,
@@ -28,8 +34,8 @@ La factura fiscal se sigue emitiendo en Profit Plus: nada se escribe ni se enví
 1. Dashboard → **New → Blueprint** → este repositorio → indique `MAESTRO_USUARIO` (y `MAESTRO_EMAIL`) → **Apply**.
    Crea la app web, la pasarela **privada** de WhatsApp con disco y la base de datos sin acceso desde Internet. `SECRET_KEY` y
    `FIELD_ENCRYPTION_KEY` las genera Render (no las cambie después: cifran los secretos guardados).
-2. Logs de `bot-profit-orituco` → copie el enlace «Active el Maestro…» (72 h, un uso) → cree su clave y su MFA.
-3. Logs de `bot-whatsapp` → copie la clave de API de OpenWA → Consola → **Pasarela de WhatsApp** (la URL ya viene puesta).
+2. Logs de `pedyra-orituco` → copie el enlace «Active el Maestro…» (72 h, un uso) → cree su clave y su MFA.
+3. Logs de `pedyra-whatsapp` → copie la clave de API de OpenWA → Consola → **Pasarela de WhatsApp** (la URL ya viene puesta).
 4. Consola → **Empresas** → nueva empresa con su administrador → envíele el enlace de activación.
 5. El cliente vincula su WhatsApp con el QR e instala el conector (`conector_profit/LEAME.md`).
 

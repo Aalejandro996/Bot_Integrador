@@ -150,7 +150,7 @@ def _sid(sid) -> str:
 
 def nombre_sesion(eid, sufijo) -> str:
     """Nombre único en la pasarela (letras, números y guiones): identifica a la empresa en la consola del Maestro."""
-    return f"contax-e{int(eid)}-{re.sub(r'[^a-z0-9]', '', sufijo.lower())[:8]}"
+    return f"pedyra-e{int(eid)}-{re.sub(r'[^a-z0-9]', '', sufijo.lower())[:8]}"
 
 
 def firma_valida(secreto: str, cuerpo: bytes, cabecera: str) -> bool:

@@ -3,8 +3,8 @@ __pycache__/
 .env
 .venv/
 .pytest_cache/
-conector_profit/contax_profit.ini
-conector_profit/contax_profit_estado.json
+conector_profit/pedyra_conector.ini
+conector_profit/pedyra_conector_estado.json
 conector_profit/*.log
 dist/
 build/

@@ -74,7 +74,7 @@ def _enlace(r):
 
 def test_recorrido_completo(app):
     from app import totp
-    import contax_profit as CP
+    import pedyra_conector as CP
     # --- el primer Maestro: inicializar escribe su enlace en el log
     from app.extensions import db
     from app.models import Usuario
@@ -105,7 +105,7 @@ def test_recorrido_completo(app):
         assert cab.get("X-API-Key") == "owa_propia"
         ruta, d = url.split("/api", 1)[1], (json.loads(cuerpo) if cuerpo else None)
         if (metodo, ruta) == ("GET", "/sessions"):
-            return 200, json.dumps([{"id": SID, "name": f"contax-e{eid}-abcd", "status": pas["estado"], "phone": pas["telefono"]}]).encode()
+            return 200, json.dumps([{"id": SID, "name": f"pedyra-e{eid}-abcd", "status": pas["estado"], "phone": pas["telefono"]}]).encode()
         if (metodo, ruta) == ("POST", "/sessions"): return 201, json.dumps({"id": SID}).encode()
         if ruta == f"/sessions/{SID}/webhooks": pas["webhook"] = d; return 201, b'{"id":"w1"}'
         if ruta == f"/sessions/{SID}/start": pas["estado"] = "qr_ready"; return 200, b"{}"
@@ -139,12 +139,12 @@ def test_recorrido_completo(app):
     import configparser
     ini = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=(";",))
     ini.read_string(adm.get("/profit/descargar/configuracion").get_data(as_text=True))
-    cid, cl = ini["contax"]["conector"], ini["contax"]["clave"]
-    assert ini["contax"]["url"] == "https://bot.test" and b"saStockAlmacen" in adm.get("/profit/descargar/usuario-sql").data
+    cid, cl = ini["pedyra"]["conector"], ini["pedyra"]["clave"]
+    assert ini["pedyra"]["url"] == "https://bot.test" and b"saStockAlmacen" in adm.get("/profit/descargar/usuario-sql").data
     def conector(ruta, datos, clave_=None, fecha=None):
         cuerpo = gzip.compress(json.dumps(datos, default=str).encode()); f = fecha or int(time.time())
         return anon.post("/api/profit/v1/" + ruta, data=cuerpo, content_type="application/json",
-                         headers={"X-Contax-Conector": cid, "Content-Encoding": "gzip", "X-Contax-Fecha": str(f), "X-Contax-Firma": CP.firmar(clave_ or cl, f, cuerpo)})
+                         headers={"X-Pedyra-Conector": cid, "Content-Encoding": "gzip", "X-Pedyra-Fecha": str(f), "X-Pedyra-Firma": CP.firmar(clave_ or cl, f, cuerpo)})
     assert conector("ping", {}, clave_="otra").status_code == 401 and conector("ping", {}, fecha=int(time.time()) - 900).status_code == 401
     cfg = conector("ping", {"version": "1.0.0", "equipo": "SRV-PROFIT"}).get_json()["config"]
     foto = CP.construir_foto([("01", "PRINCIPAL", False), ("09", "MERMAS", True)], [("01", "DETAL")],

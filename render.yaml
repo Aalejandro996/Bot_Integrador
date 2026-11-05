@@ -1,14 +1,14 @@
-# Blueprint de Render — «Bot Profit Orituco» (Gigadevs Corp). Dashboard → New → Blueprint → este repositorio.
+# Blueprint de Render — «Pedyra Orituco» (Gigadevs Corp). Dashboard → New → Blueprint → este repositorio.
 # Seguridad: la base de datos y la pasarela de WhatsApp NO tienen acceso desde Internet (solo la red privada de Render);
 # las claves de la app las genera Render (nadie las ve ni viajan por el repositorio); solo se piden el usuario y el correo del Maestro.
 projects:
-  - name: Bot Profit Orituco
+  - name: Pedyra Orituco
     environments:
       - name: produccion
         services:
           # ------------------------------------------------------------- app web (clientes + consola Maestro + API del conector)
           - type: web
-            name: bot-profit-orituco
+            name: pedyra-orituco
             runtime: python
             plan: starter
             region: ohio
@@ -27,12 +27,12 @@ projects:
                 generateValue: true
               - key: DATABASE_URL
                 fromDatabase:
-                  name: bot-profit-db
+                  name: pedyra-db
                   property: connectionString
               - key: OPENWA_URL                  # pasarela PROPIA por la red privada (host:puerto)
                 fromService:
                   type: pserv
-                  name: bot-whatsapp
+                  name: pedyra-whatsapp
                   property: hostport
               - key: MAESTRO_USUARIO             # su usuario de Gigadevs: el enlace de activación sale en el log del primer despliegue
                 sync: false
@@ -42,16 +42,16 @@ projects:
           # ------------------------------------------------------------- pasarela de WhatsApp PROPIA (OpenWA), privada
           # Sin URL pública: la app le habla por la red interna. Una sesión por empresa, vinculada por QR. Motor Baileys.
           # La clave de administrador sale en su primer log y en /app/data/.api-key: el Maestro la pega en Consola → Pasarela de WhatsApp.
-          # Imagen fijada por digest (la versión probada en Contax); para actualizar, cambie el digest a propósito.
+          # Imagen fijada por digest (la versión probada); para actualizar, cambie el digest a propósito.
           - type: pserv
-            name: bot-whatsapp
+            name: pedyra-whatsapp
             runtime: image
             image:
               url: ghcr.io/rmyndharis/openwa@sha256:1a2d0c393a7c8a629b0b18cdb5125d9be59192480c02d56a022c249a66af9068
             plan: starter
             region: ohio
             disk:                                # sesiones vinculadas: sobreviven a reinicios y despliegues
-              name: bot-whatsapp-datos
+              name: pedyra-whatsapp-datos
               mountPath: /app/data
               sizeGB: 1
             envVars:
@@ -67,7 +67,7 @@ projects:
                 value: "false"
 
         databases:
-          - name: bot-profit-db
+          - name: pedyra-db
             plan: basic-256mb
             region: ohio
             databaseName: bot_profit

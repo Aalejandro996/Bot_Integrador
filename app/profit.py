@@ -1,13 +1,13 @@
 """Integración con Profit Plus — lógica PURA (sin BD ni red): firma de las peticiones del conector y validación de la
 «foto» que envía (artículos, existencias por almacén, precios y clientes).
 
-Protocolo del conector (conector_profit/contax_profit.py), siempre de SALIDA desde la red del cliente por HTTPS:
+Protocolo del conector (conector_profit/pedyra_conector.py), siempre de SALIDA desde la red del cliente por HTTPS:
   POST <url>/api/profit/v1/ping   cuerpo JSON pequeño: prueba la conexión y trae la configuración
   POST <url>/api/profit/v1/sync   cuerpo JSON (gzip opcional, Content-Encoding: gzip) con la foto completa
-Cabeceras: X-Contax-Conector: <id público> · X-Contax-Fecha: <segundos Unix> ·
-           X-Contax-Firma: sha256=<hex HMAC-SHA256(secreto, "<fecha>." + sha256_hex(cuerpo tal cual viaja))>
+Cabeceras: X-Pedyra-Conector: <id público> · X-Pedyra-Fecha: <segundos Unix> ·
+           X-Pedyra-Firma: sha256=<hex HMAC-SHA256(secreto, "<fecha>." + sha256_hex(cuerpo tal cual viaja))>
 Una firma vale 5 minutos. La foto reemplaza completa a la anterior: repetirla no altera nada.
-Contax NUNCA escribe en Profit Plus: el conector solo hace SELECT con un usuario de lectura."""
+Pedyra NUNCA escribe en Profit Plus: el conector solo hace SELECT con un usuario de lectura."""
 import gzip
 import hashlib
 import hmac
@@ -128,6 +128,6 @@ def validar_foto(d: dict, max_articulos=20000, max_clientes=50000) -> dict:
 
 
 def config_para_conector(conexion, intervalo_min) -> dict:
-    """Lo que el conector debe aplicar en su próxima lectura (lo elige la empresa en Contax, no se edita en el equipo)."""
+    """Lo que el conector debe aplicar en su próxima lectura (lo elige la empresa en Pedyra, no se edita en el equipo)."""
     return dict(activo=bool(conexion.activo), almacenes=list(conexion.almacenes or []), lista_precio=conexion.lista_precio or "01",
                 restar_comprometido=bool(conexion.restar_comprometido), intervalo_min=int(intervalo_min))

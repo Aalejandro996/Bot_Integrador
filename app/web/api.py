@@ -52,13 +52,13 @@ def aviso_whatsapp(clave):
 
 # ====================================================================== conector de Profit Plus
 def _conector():
-    cid = request.headers.get("X-Contax-Conector", "")
+    cid = request.headers.get("X-Pedyra-Conector", "")
     if not cid or len(cid) > 64: abort(401)
     from ..models import ProfitConexion
     c = db.session.execute(select(ProfitConexion).where(ProfitConexion.conector_id == cid)).scalar_one_or_none()
     cuerpo = request.get_data(cache=True)
-    if c is None or not PF.firma_valida(SV.cifrador().descifrar(c.secreto_cifrado), request.headers.get("X-Contax-Fecha", ""), cuerpo,
-                                         request.headers.get("X-Contax-Firma", "")):
+    if c is None or not PF.firma_valida(SV.cifrador().descifrar(c.secreto_cifrado), request.headers.get("X-Pedyra-Fecha", ""), cuerpo,
+                                         request.headers.get("X-Pedyra-Firma", "")):
         abort(401)
     e, plat = db.session.get(Empresa, c.empresa_id), SV.profit_plataforma()
     if e is None or not e.activa: abort(402)

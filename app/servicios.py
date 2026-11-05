@@ -55,7 +55,7 @@ _ultimo_intento = [0.0]
 
 
 def _get_json(url):
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "ContaxBot/1.0"})
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "Pedyra/1.0"})
     with urllib.request.urlopen(req, timeout=6) as r:  # noqa: S310 (URL fija HTTPS)
         return json.loads(r.read(64 * 1024))
 
@@ -177,10 +177,10 @@ def url_api_profit() -> str:
 
 
 def conector_ini(c: ProfitConexion) -> str:
-    return f"""; Conector Contax Bot ↔ Profit Plus (SOLO LECTURA). Generado el {hoy_ve().isoformat()}.
-; Guarde este archivo como «contax_profit.ini» junto a contax_profit.exe. No lo comparta: la clave identifica a su empresa.
+    return f"""; Conector Pedyra ↔ Profit Plus (SOLO LECTURA). Generado el {hoy_ve().isoformat()}.
+; Guarde este archivo como «pedyra_conector.ini» junto a pedyra_conector.exe. No lo comparta: la clave identifica a su empresa.
 
-[contax]
+[pedyra]
 url = {url_api_profit()}
 conector = {c.conector_id}
 clave = {cifrador().descifrar(c.secreto_cifrado)}
@@ -189,7 +189,7 @@ clave = {cifrador().descifrar(c.secreto_cifrado)}
 ; Servidor y base de datos de Profit Plus. Use un usuario de SOLO LECTURA (vea crear_usuario_lectura.sql).
 servidor = localhost\\SQLEXPRESS
 base_datos = NOMBRE_DE_LA_EMPRESA_EN_PROFIT
-usuario = contax_lectura
+usuario = pedyra_lectura
 contrasena =
 ; driver = ODBC Driver 18 for SQL Server
 ; cifrar = no

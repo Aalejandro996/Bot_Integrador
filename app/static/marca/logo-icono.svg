@@ -1,7 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Contax">
-  <rect width="64" height="64" rx="16" fill="#191919"/>
-  <path d="M45.5 20.5 A16 16 0 1 0 45.5 43.5" fill="none" stroke="#87e64b" stroke-width="8" stroke-linecap="round"/>
-  <rect x="27" y="27.5" width="13" height="4" rx="2" fill="#87e64b"/>
-  <rect x="27" y="34" width="8" height="4" rx="2" fill="#87e64b"/>
-  <circle cx="46" cy="32" r="4.5" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pedyra">
+  <title>Pedyra</title>
+  <!-- Burbuja de conversación con cola abajo a la izquierda -->
+  <path fill="#FF9A1F" d="M14 6h36a10 10 0 0 1 10 10v24a10 10 0 0 1-10 10H26l-12 10v-10.4A10 10 0 0 1 4 40V16A10 10 0 0 1 14 6z"/>
+  <!-- Caja de pedido (isométrica) -->
+  <path fill="#0F1B2D" d="M32 14l14 7v15l-14 7-14-7V21z"/>
+  <path fill="#FFFFFF" d="M32 17.6l10.6 5.3L32 28.2l-10.6-5.3z"/>
+  <path fill="#FFD9A3" d="M21 25.4l9.6 4.8v10.6L21 36z"/>
+  <path fill="#FFFFFF" d="M43 25.4v10.6l-9.6 4.8V30.2z"/>
 </svg>

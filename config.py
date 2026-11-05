@@ -19,7 +19,7 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
     FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
     APP_BASE_URL = (os.environ.get("APP_BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "http://127.0.0.1:5000").rstrip("/")
-    APP_NOMBRE = os.environ.get("APP_NOMBRE", "Contax Bot")
+    APP_NOMBRE = os.environ.get("APP_NOMBRE", "Pedyra")
     APP_LEMA = "Bot de WhatsApp conectado a Profit Plus"
     # Pasarela OpenWA propia de este bot: si el Maestro no la configuró en la consola, se usa la de estas variables
     OPENWA_URL = os.environ.get("OPENWA_URL", "")

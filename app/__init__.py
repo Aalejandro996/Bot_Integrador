@@ -1,4 +1,4 @@
-"""Contax Bot · Profit Plus — bot de WhatsApp conectado (solo lectura) a Profit Plus. Gigadevs Corp."""
+"""Pedyra · Profit Plus — bot de WhatsApp conectado (solo lectura) a Profit Plus. Gigadevs Corp."""
 import logging
 import secrets
 

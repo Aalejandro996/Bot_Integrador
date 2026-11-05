@@ -14,8 +14,9 @@
   <div class="tabla-wrap"><table><thead><tr><th>Código</th><th>Descripción</th><th class="n">Cantidad</th><th class="n">Precio Bs</th><th class="n">Monto Bs</th></tr></thead><tbody>
   {% for l in d.lineas %}<tr><td>{{ l.codigo }}</td><td>{{ l.descripcion }}{% if l.alicuota == 'E' %} (E){% endif %}</td><td class="n">{{ l.cantidad }}</td><td class="n">{{ bs(l.precio) }}</td><td class="n">{{ bs(l.monto) }}</td></tr>
   {% else %}<tr><td colspan="5" class="peq">Sin productos</td></tr>{% endfor %}</tbody></table></div>
-  <table class="pares doc-totales"><tr><th>Exento</th><td class="n">{{ bs(d.exento) }}</td></tr><tr><th>Base imponible</th><td class="n">{{ bs(d.base) }}</td></tr>
-    <tr><th>IVA</th><td class="n">{{ bs(d.iva) }}</td></tr><tr><th><b>Total Bs</b></th><td class="n"><b>{{ bs(d.total) }}</b></td></tr></table>
+  <dl class="pares doc-totales"><div><dt>Exento</dt><dd>{{ bs(d.exento) }}</dd></div><div><dt>Base imponible</dt><dd>{{ bs(d.base) }}</dd></div>
+    <div><dt>IVA</dt><dd>{{ bs(d.iva) }}</dd></div><div><dt><b>Total Bs</b></dt><dd><b>{{ bs(d.total) }}</b></dd></div></dl>
   {% if d.nota %}<p class="peq">{{ d.nota }}</p>{% endif %}
-  <p class="peq">(E) exento de IVA. Documento generado por el bot de WhatsApp de {{ e.razon_social }}.</p>
+  <p class="peq">(E) exento de IVA.</p>
+  <div class="doc-pie"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="18" height="18">Generado por el asistente de WhatsApp de {{ e.razon_social }} · pedyra™</div>
 </article></main></body></html>

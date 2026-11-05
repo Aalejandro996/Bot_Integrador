@@ -1,17 +1,17 @@
-"""Conector Contax ↔ Profit Plus (SOLO LECTURA) — corre en el servidor de Profit Plus del cliente (Windows).
+"""Conector Pedyra ↔ Profit Plus (SOLO LECTURA) — corre en el servidor de Profit Plus del cliente (Windows).
 
 Lee de SQL Server artículos, existencias por almacén, precios de venta y clientes con un usuario que solo tiene SELECT,
-y envía la «foto» a Contax por HTTPS (solo conexiones de SALIDA: no hay que abrir puertos). Nunca escribe en Profit Plus.
-Qué almacenes y qué lista de precios se toman lo decide la empresa en Contax (Clientes → Profit Plus); este programa
-lo recibe en cada conexión. La conexión a SQL Server vive SOLO en contax_profit.ini, en este equipo.
+y envía la «foto» a Pedyra por HTTPS (solo conexiones de SALIDA: no hay que abrir puertos). Nunca escribe en Profit Plus.
+Qué almacenes y qué lista de precios se toman lo decide la empresa en Pedyra (Clientes → Profit Plus); este programa
+lo recibe en cada conexión. La conexión a SQL Server vive SOLO en pedyra_conector.ini, en este equipo.
 
 Uso:
-  contax_profit --probar          prueba SQL Server y Contax, muestra conteos
-  contax_profit --una-vez         sincroniza ahora (si toca) y termina — es lo que ejecuta la tarea programada
-  contax_profit --forzar          sincroniza ahora aunque no haya pasado el intervalo
-  contax_profit --instalar-tarea  crea la tarea programada de Windows (cada 5 min revisa; sincroniza según el intervalo de Contax)
-  contax_profit --quitar-tarea
-Requiere Python 3.10+ y pyodbc (o use contax_profit.exe, que ya los trae) y el «ODBC Driver 17/18 for SQL Server»."""
+  pedyra_conector --probar          prueba SQL Server y Pedyra, muestra conteos
+  pedyra_conector --una-vez         sincroniza ahora (si toca) y termina — es lo que ejecuta la tarea programada
+  pedyra_conector --forzar          sincroniza ahora aunque no haya pasado el intervalo
+  pedyra_conector --instalar-tarea  crea la tarea programada de Windows (cada 5 min revisa; sincroniza según el intervalo de Pedyra)
+  pedyra_conector --quitar-tarea
+Requiere Python 3.10+ y pyodbc (o use pedyra_conector.exe, que ya los trae) y el «ODBC Driver 17/18 for SQL Server»."""
 import argparse
 import configparser
 import gzip
@@ -33,9 +33,9 @@ from pathlib import Path
 
 VERSION = "1.0.0"
 CARPETA = Path(sys.executable if getattr(sys, "frozen", False) else __file__).resolve().parent
-INI = CARPETA / "contax_profit.ini"
-ESTADO = CARPETA / "contax_profit_estado.json"
-log = logging.getLogger("contax_profit")
+INI = CARPETA / "pedyra_conector.ini"
+ESTADO = CARPETA / "pedyra_conector_estado.json"
+log = logging.getLogger("pedyra_conector")
 
 # Consultas para Profit Plus 2K12 (12.x). Se pueden reemplazar en la sección [consultas] del .ini (otras versiones).
 # Todas son SELECT: el usuario de lectura no tiene ningún otro permiso.
@@ -82,7 +82,7 @@ def elegir_precio(filas, almacenes):
 
 def construir_foto(almacenes_rows, listas_rows, articulos_rows, stock_rows, precios_rows, clientes_rows, config, alicuotas,
                    tipo_actual="ACT", tipo_comprometido="COM") -> dict:
-    """Arma la foto que espera Contax (app/profit.py) a partir de las filas leídas de SQL Server."""
+    """Arma la foto que espera Pedyra (app/profit.py) a partir de las filas leídas de SQL Server."""
     elegidos = set(config.get("almacenes") or [])
     de_venta = {r[0] for r in almacenes_rows if not r[2]}
     cuentan = elegidos or de_venta or {r[1] for r in stock_rows}
@@ -124,14 +124,14 @@ def toca_sincronizar(estado: dict, ahora: float) -> bool:
 
 # ====================================================================== configuración y estado local
 def leer_ini(ruta=INI) -> configparser.ConfigParser:
-    if not ruta.exists(): raise ErrorConector(f"No existe {ruta}. Descárguelo en Contax → Clientes → Profit Plus y cópielo junto a este programa.")
+    if not ruta.exists(): raise ErrorConector(f"No existe {ruta}. Descárguelo en Pedyra → Clientes → Profit Plus y cópielo junto a este programa.")
     cfg = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=(";",))
     cfg.read(ruta, encoding="utf-8-sig")
-    for sec, claves in (("contax", ("url", "conector", "clave")), ("sqlserver", ("servidor", "base_datos"))):
+    for sec, claves in (("pedyra", ("url", "conector", "clave")), ("sqlserver", ("servidor", "base_datos"))):
         for k in claves:
             if not cfg.get(sec, k, fallback="").strip(): raise ErrorConector(f"Falta «{k}» en la sección [{sec}] de {ruta.name}")
-    if not cfg.get("contax", "url").startswith("https://") and "localhost" not in cfg.get("contax", "url"):
-        raise ErrorConector("La URL de Contax debe empezar por https://")
+    if not cfg.get("pedyra", "url").startswith("https://") and "localhost" not in cfg.get("pedyra", "url"):
+        raise ErrorConector("La URL de Pedyra debe empezar por https://")
     return cfg
 
 
@@ -152,14 +152,14 @@ def conectar_sql(cfg):
     try:
         import pyodbc
     except ImportError as e:
-        raise ErrorConector("Falta pyodbc: instálelo con «pip install pyodbc» o use contax_profit.exe") from e
+        raise ErrorConector("Falta pyodbc: instálelo con «pip install pyodbc» o use pedyra_conector.exe") from e
     driver = s.get("driver", "").strip()
     if not driver:
         disponibles = [d for d in pyodbc.drivers() if "SQL Server" in d]
         preferidos = [d for d in ("ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server", "SQL Server Native Client 11.0", "SQL Server") if d in disponibles]
         if not preferidos: raise ErrorConector("No hay un driver ODBC de SQL Server instalado (instale «ODBC Driver 18 for SQL Server» de Microsoft)")
         driver = preferidos[0]
-    partes = [f"DRIVER={{{driver}}}", f"SERVER={s['servidor']}", f"DATABASE={s['base_datos']}", "ApplicationIntent=ReadOnly", "APP=Contax conector Profit"]
+    partes = [f"DRIVER={{{driver}}}", f"SERVER={s['servidor']}", f"DATABASE={s['base_datos']}", "ApplicationIntent=ReadOnly", "APP=Pedyra conector Profit"]
     if s.get("usuario", "").strip(): partes += [f"UID={s['usuario']}", f"PWD={s.get('contrasena', '')}"]
     else: partes.append("Trusted_Connection=yes")
     if "18" in driver or "17" in driver:
@@ -199,25 +199,25 @@ def leer_profit(cfg, config_contax) -> dict:
                           tipo_actual=cfg.get("profit", "stock_actual", fallback="ACT"), tipo_comprometido=cfg.get("profit", "stock_comprometido", fallback="COM"))
 
 
-# ====================================================================== Contax (HTTPS, solo salida)
+# ====================================================================== Pedyra (HTTPS, solo salida)
 def llamar(cfg, ruta, datos: dict, comprimir=False, timeout=120) -> dict:
     cuerpo = json.dumps(datos, ensure_ascii=False, default=str).encode()
-    cab = {"Content-Type": "application/json", "User-Agent": f"contax-profit/{VERSION}", "X-Contax-Conector": cfg.get("contax", "conector").strip()}
+    cab = {"Content-Type": "application/json", "User-Agent": f"pedyra-conector/{VERSION}", "X-Pedyra-Conector": cfg.get("pedyra", "conector").strip()}
     if comprimir: cuerpo, cab["Content-Encoding"] = gzip.compress(cuerpo, 6), "gzip"
     fecha = int(time.time())
-    cab["X-Contax-Fecha"], cab["X-Contax-Firma"] = str(fecha), firmar(cfg.get("contax", "clave").strip(), fecha, cuerpo)
-    req = urllib.request.Request(cfg.get("contax", "url").rstrip("/") + ruta, cuerpo, cab, method="POST")
+    cab["X-Pedyra-Fecha"], cab["X-Pedyra-Firma"] = str(fecha), firmar(cfg.get("pedyra", "clave").strip(), fecha, cuerpo)
+    req = urllib.request.Request(cfg.get("pedyra", "url").rstrip("/") + ruta, cuerpo, cab, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (URL https del .ini)
             return json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
-        motivo = {401: "el ID o la clave del conector no son válidos (descargue de nuevo contax_profit.ini)", 402: "la licencia de Contax no incluye el bot",
+        motivo = {401: "el ID o la clave del conector no son válidos (descargue de nuevo pedyra_conector.ini)", 402: "la licencia de Pedyra no incluye el bot",
                   503: "la integración está pausada en la plataforma"}.get(e.code)
         try: motivo = motivo or json.loads(e.read() or b"{}").get("error")
         except ValueError: pass
-        raise ErrorConector(f"Contax respondió {e.code}: {motivo or 'error'}") from e
+        raise ErrorConector(f"Pedyra respondió {e.code}: {motivo or 'error'}") from e
     except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise ErrorConector(f"No se pudo contactar a Contax ({getattr(e, 'reason', e)})") from e
+        raise ErrorConector(f"No se pudo contactar a Pedyra ({getattr(e, 'reason', e)})") from e
 
 
 def ping(cfg, error=None) -> dict:
@@ -232,11 +232,11 @@ def sincronizar(cfg, forzar=False) -> bool:
     config = r.get("config") or {}
     estado["config"] = config
     if not config.get("activo", True):
-        log.info("El conector está pausado en Contax"); estado["ultima_sync"] = time.time(); guardar_estado(estado); return False
+        log.info("El conector está pausado en Pedyra"); estado["ultima_sync"] = time.time(); guardar_estado(estado); return False
     try:
         foto = leer_profit(cfg, config)
     except ErrorConector as e:
-        try: ping(cfg, error=e)                          # que la empresa lo vea en Contax
+        try: ping(cfg, error=e)                          # que la empresa lo vea en Pedyra
         except ErrorConector: pass
         raise
     r = llamar(cfg, "/api/profit/v1/sync", foto, comprimir=True)
@@ -252,28 +252,28 @@ def _comando():
 
 
 def instalar_tarea():
-    if os.name != "nt": raise ErrorConector("La tarea programada es para Windows. En Linux use cron: */5 * * * * python3 contax_profit.py --una-vez")
-    subprocess.run(["schtasks", "/Create", "/F", "/TN", "Contax Profit Plus", "/SC", "MINUTE", "/MO", "5", "/RU", "SYSTEM",
+    if os.name != "nt": raise ErrorConector("La tarea programada es para Windows. En Linux use cron: */5 * * * * python3 pedyra_conector.py --una-vez")
+    subprocess.run(["schtasks", "/Create", "/F", "/TN", "Pedyra Profit Plus", "/SC", "MINUTE", "/MO", "5", "/RU", "SYSTEM",
                     "/TR", f"{_comando()} --una-vez"], check=True)
-    print("Tarea «Contax Profit Plus» creada: revisa cada 5 minutos y sincroniza según el intervalo configurado en Contax.")
+    print("Tarea «Pedyra Profit Plus» creada: revisa cada 5 minutos y sincroniza según el intervalo configurado en Pedyra.")
 
 
 def quitar_tarea():
-    subprocess.run(["schtasks", "/Delete", "/F", "/TN", "Contax Profit Plus"], check=True)
+    subprocess.run(["schtasks", "/Delete", "/F", "/TN", "Pedyra Profit Plus"], check=True)
 
 
 # ====================================================================== principal
 def configurar_log():
     log.setLevel(logging.INFO)
-    h = logging.handlers.RotatingFileHandler(CARPETA / "contax_profit.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    h = logging.handlers.RotatingFileHandler(CARPETA / "pedyra_conector.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")
     h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s")); log.addHandler(h)
     s = logging.StreamHandler(); s.setFormatter(logging.Formatter("%(message)s")); log.addHandler(s)
 
 
 def probar(cfg):
-    print(f"Conector Contax ↔ Profit Plus {VERSION}")
+    print(f"Conector Pedyra ↔ Profit Plus {VERSION}")
     r = ping(cfg)
-    print("✔ Contax: conexión y clave correctas. Configuración:", json.dumps(r.get("config"), ensure_ascii=False))
+    print("✔ Pedyra: conexión y clave correctas. Configuración:", json.dumps(r.get("config"), ensure_ascii=False))
     foto = leer_profit(cfg, r.get("config") or {})
     print(f"✔ SQL Server: {len(foto['articulos'])} artículos, {sum(1 for a in foto['articulos'] if Decimal(a['existencia']) > 0)} con existencia, "
           f"{sum(1 for a in foto['articulos'] if Decimal(a['precio']) > 0)} con precio, {len(foto['clientes'])} clientes")
@@ -282,7 +282,7 @@ def probar(cfg):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Conector Contax ↔ Profit Plus (solo lectura)")
+    ap = argparse.ArgumentParser(description="Conector Pedyra ↔ Profit Plus (solo lectura)")
     g = ap.add_mutually_exclusive_group()
     for op in ("--probar", "--una-vez", "--forzar", "--instalar-tarea", "--quitar-tarea"): g.add_argument(op, action="store_true")
     a = ap.parse_args(argv)

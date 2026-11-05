@@ -12,7 +12,7 @@ from app import profit as PF
 from app import bot as B
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "conector_profit"))
-import contax_profit as CP  # noqa: E402
+import pedyra_conector as CP  # noqa: E402
 
 
 def test_firma_del_conector_coincide_con_la_del_servidor_y_vence():
@@ -86,9 +86,9 @@ def test_conector_respeta_el_intervalo_que_fija_contax():
 def test_conector_exige_ini_completo(tmp_path):
     with pytest.raises(CP.ErrorConector): CP.leer_ini(tmp_path / "no.ini")
     p = tmp_path / "c.ini"
-    p.write_text("[contax]\nurl = http://contax.test\nconector = pp_1\nclave = k\n[sqlserver]\nservidor = s\nbase_datos = b\n", encoding="utf-8")
+    p.write_text("[pedyra]\nurl = http://contax.test\nconector = pp_1\nclave = k\n[sqlserver]\nservidor = s\nbase_datos = b\n", encoding="utf-8")
     with pytest.raises(CP.ErrorConector, match="https"): CP.leer_ini(p)
-    p.write_text("[contax]\nurl = https://contax.test\nconector = pp_1\nclave = k\n[sqlserver]\nservidor = s ; comentario\nbase_datos =\n", encoding="utf-8")
+    p.write_text("[pedyra]\nurl = https://contax.test\nconector = pp_1\nclave = k\n[sqlserver]\nservidor = s ; comentario\nbase_datos =\n", encoding="utf-8")
     with pytest.raises(CP.ErrorConector, match="base_datos"): CP.leer_ini(p)
 
 

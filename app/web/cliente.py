@@ -19,14 +19,14 @@ from . import F, bp, campo, hora, intentar, oculto, pagina
 CLIENTE = ("Administrador", "Operador")
 CARPETA_CONECTOR = Path(__file__).resolve().parents[2] / "conector_profit"
 # Sin extensión en la URL (.py, .sql, .ini): así ningún filtro de rastreos las confunde con un escaneo.
-DESCARGAS = {"conector": ("contax_profit.py", "text/x-python"), "usuario-sql": ("crear_usuario_lectura.sql", "text/plain"),
+DESCARGAS = {"conector": ("pedyra_conector.py", "text/x-python"), "usuario-sql": ("crear_usuario_lectura.sql", "text/plain"),
              "instrucciones": ("LEAME.md", "text/markdown"), "requisitos": ("requirements.txt", "text/plain")}
 
 
 def atraso(ts, intervalo):
     if ts is None: return "Nunca"
     minutos = int((ahora() - ts).total_seconds() // 60)
-    return "hace " + (f"{minutos} min" if minutos < 120 else f"{minutos // 60} h") + (" ⚠️ atrasado" if minutos > 2 * intervalo + 5 else "")
+    return ("hace un momento" if minutos < 1 else "hace " + (f"{minutos} min" if minutos < 120 else f"{minutos // 60} h")) + (" ⚠️ atrasado" if minutos > 2 * intervalo + 5 else "")
 
 
 @bp.route("/")
@@ -170,7 +170,7 @@ def profit():
             else: raise ValueError("Acción inválida")
             db.session.commit()
         intentar(hacer, {"activar": "Integración activada: descargue la configuración del conector", "guardar": "Configuración guardada: el conector la aplicará en su próxima lectura",
-                         "rotar": "Clave renovada: descargue de nuevo contax_profit.ini y reemplácelo en el servidor de Profit"}.get(a, "Hecho"))
+                         "rotar": "Clave renovada: descargue de nuevo pedyra_conector.ini y reemplácelo en el servidor de Profit"}.get(a, "Hecho"))
         return redirect(request.url)
     if plat is None or not plat.activa:
         return pagina("Profit Plus", [dict(titulo="Integración con Profit Plus", nota="La integración todavía no está habilitada. Contacte a soporte de Gigadevs.")])
@@ -200,14 +200,14 @@ def profit():
                      valor="1" if c.solo_con_existencia else "0")]
     secs.append(dict(titulo="Qué toma el bot de Profit", abierto=True, nota="Los almacenes y listas aparecen aquí cuando el conector se conecta por primera vez.",
                      form=dict(action=request.path, boton="Guardar", campos=campos)))
-    enlaces = [dict(url=url_for("web.profit_descarga", archivo="configuracion"), texto="⬇ contax_profit.ini (configuración con su clave)")]
+    enlaces = [dict(url=url_for("web.profit_descarga", archivo="configuracion"), texto="⬇ pedyra_conector.ini (configuración con su clave)")]
     enlaces += [dict(url=url_for("web.profit_descarga", archivo=k), texto="⬇ " + v[0]) for k, v in DESCARGAS.items()]
-    if plat.url_instalador: enlaces.insert(0, dict(url=plat.url_instalador, texto="⬇ Instalador contax_profit.exe (Windows)"))
+    if plat.url_instalador: enlaces.insert(0, dict(url=plat.url_instalador, texto="⬇ Instalador pedyra_conector.exe (Windows)"))
     secs.append(dict(titulo="Instalar el conector en el servidor de Profit Plus", abierto=True, enlaces=enlaces,
-                     nota="1) En SQL Server ejecute crear_usuario_lectura.sql (usuario que solo puede LEER). 2) Copie contax_profit.exe y contax_profit.ini en "
-                          "C:\\Contax. 3) Complete la sección [sqlserver] del .ini. 4) Ejecute «contax_profit --probar». 5) «contax_profit --instalar-tarea» "
+                     nota="1) En SQL Server ejecute crear_usuario_lectura.sql (usuario que solo puede LEER). 2) Copie pedyra_conector.exe y pedyra_conector.ini en "
+                          "C:\\Pedyra. 3) Complete la sección [sqlserver] del .ini. 4) Ejecute «pedyra_conector --probar». 5) «pedyra_conector --instalar-tarea» "
                           f"(arranca con Windows y lee cada {plat.intervalo_min} minutos). Detalles en LEAME.md."))
-    secs.append(dict(titulo="Renovar la clave del conector", nota="Úsela si cree que contax_profit.ini se filtró. El conector deja de funcionar hasta que reemplace el archivo.",
+    secs.append(dict(titulo="Renovar la clave del conector", nota="Úsela si cree que pedyra_conector.ini se filtró. El conector deja de funcionar hasta que reemplace el archivo.",
                      form=dict(action=request.path, boton="Renovar clave", boton_clase="sec", confirmar="¿Renovar la clave? El conector actual dejará de sincronizar.", campos=[oculto("rotar")])))
     arts = db.session.execute(select(ProfitArticulo).where(ProfitArticulo.empresa_id == eid).order_by(ProfitArticulo.codigo).limit(25)).scalars().all()
     if arts:
@@ -229,7 +229,7 @@ def profit_descarga(archivo):
     if archivo == "configuracion":
         registrar("PROFIT_INI_DESCARGADO", ""); db.session.commit()
         return Response(SV.conector_ini(c), mimetype="text/plain; charset=utf-8",
-                        headers={"Content-Disposition": "attachment; filename=contax_profit.ini", "Cache-Control": "no-store"})
+                        headers={"Content-Disposition": "attachment; filename=pedyra_conector.ini", "Cache-Control": "no-store"})
     if archivo not in DESCARGAS: abort(404)
     nombre, tipo = DESCARGAS[archivo]
     return Response((CARPETA_CONECTOR / nombre).read_bytes(), mimetype=tipo + "; charset=utf-8", headers={"Content-Disposition": f"attachment; filename={nombre}"})

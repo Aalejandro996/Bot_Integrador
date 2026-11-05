@@ -79,14 +79,14 @@ def maestro():
                         f["p"].n_articulos if f["p"] else "—", f"{f['p'].agente_equipo or '—'} · {f['p'].agente_version or '—'}" if f["p"] else "—"]) for f in filas])),
         dict(titulo="API del conector de Profit Plus", abierto=True,
              nota="El conector corre en el servidor de Profit de cada cliente y llama a esta URL por HTTPS (solo salida; el cliente no abre puertos). "
-                  "Cada empresa tiene su ID y su clave, que descarga en contax_profit.ini. Pausar la API detiene la sincronización: los bots siguen con la última foto.",
+                  "Cada empresa tiene su ID y su clave, que descarga en pedyra_conector.ini. Pausar la API detiene la sincronización: los bots siguen con la última foto.",
              form=dict(action=request.path, boton="Guardar", campos=[oculto("guardar"),
                        campo("activa", "API", "select", opciones=[("1", "Activa"), ("0", "Pausada")], valor="1" if (p is None or p.activa) else "0"),
                        campo("url_publica", "URL pública que usan los conectores", req=False, valor=p.url_publica if p else None, ph=current_app.config["APP_BASE_URL"]),
                        campo("intervalo_min", "Cada cuántos minutos sincronizan", "number", valor=intervalo),
                        campo("max_articulos", "Máximo de artículos por empresa", "number", valor=p.max_articulos if p else 20000),
                        campo("max_clientes", "Máximo de clientes por empresa", "number", valor=p.max_clientes if p else 50000),
-                       campo("url_instalador", "Descarga del instalador contax_profit.exe (https://…)", req=False, valor=p.url_instalador if p else None)]))])
+                       campo("url_instalador", "Descarga del instalador pedyra_conector.exe (https://…)", req=False, valor=p.url_instalador if p else None)]))])
 
 
 @bp.route("/maestro/empresas", methods=["GET", "POST"])
@@ -166,13 +166,13 @@ def maestro_whatsapp():
         try: sesiones = ow.sesiones()
         except ErrorWhatsapp as e: flash(f"No se pudo leer la pasarela: {e}")
     nombres = {e.id: e.razon_social for e in db.session.execute(select(Empresa)).scalars()}
-    empresa = lambda n: nombres.get(int(m.group(1)), f"Empresa {m.group(1)}") if (m := re.match(r"contax-e(\d+)-", str(n or ""))) else "— (creada fuera del bot)"
+    empresa = lambda n: nombres.get(int(m.group(1)), f"Empresa {m.group(1)}") if (m := re.match(r"pedyra-e(\d+)-", str(n or ""))) else "— (creada fuera del bot)"
     origen = "consola" if p else ("variables OPENWA_URL / OPENWA_API_KEY" if ow else "sin configurar")
     return pagina("Pasarela de WhatsApp", [
         dict(kpis=[("Pasarela", ("Activa" if (p.activa if p else True) else "Pausada") if ow or p else "Sin configurar"), ("Origen", origen), ("Sesiones", len(sesiones)),
                    ("Conectadas", sum(x.get("status") == "ready" for x in sesiones))]),
         dict(titulo="Pasarela OpenWA del bot", abierto=True,
-             nota="Pasarela propia de este bot (no la de Contax): cada empresa tiene su sesión y vincula SU número con el QR. La clave de administrador la "
+             nota="Pasarela propia de este bot (no la de Pedyra): cada empresa tiene su sesión y vincula SU número con el QR. La clave de administrador la "
                   "genera OpenWA en su primer arranque (aparece en su log y en /app/data/.api-key). Se guarda cifrada; déjela vacía para conservar la actual. "
                   "Antes de guardar se comprueba que la URL y la clave funcionen.",
              form=dict(action=request.path, boton="Verificar y guardar", campos=[campo("url", "URL de la pasarela", valor=p.url if p else current_app.config.get("OPENWA_URL")),
