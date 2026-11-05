@@ -228,7 +228,7 @@ def maestro_parametros():
 @requiere("Maestro")
 def maestro_bitacora():
     nombres = {e.id: e.razon_social for e in db.session.execute(select(Empresa)).scalars()}
-    bs = db.session.execute(select(Bitacora).order_by(Bitacora.id.desc()).limit(300)).scalars()
+    bs = db.session.execute(select(Bitacora).order_by(Bitacora.id.desc()).limit(3000)).scalars()
     return pagina("Bitácora", [dict(tabla=dict(cols=["Fecha", "Empresa", "Usuario", "Acción", "Detalle", "IP"], filas=[
         dict(cells=[hora(b.ts), nombres.get(b.empresa_id, "Plataforma"), b.usuario, b.accion, (b.detalle or "")[:200], b.ip or ""]) for b in bs]))])
 

@@ -215,9 +215,9 @@ def profit():
                           f"(arranca con Windows y lee cada {plat.intervalo_min} minutos). Detalles en LEAME.md."))
     secs.append(dict(titulo="Renovar la clave del conector", nota="Úsela si cree que surtia_conector.ini se filtró. El conector deja de funcionar hasta que reemplace el archivo.",
                      form=dict(action=request.path, boton="Renovar clave", boton_clase="sec", confirmar="¿Renovar la clave? El conector actual dejará de sincronizar.", campos=[oculto("rotar")])))
-    arts = db.session.execute(select(ProfitArticulo).where(ProfitArticulo.empresa_id == eid).order_by(ProfitArticulo.codigo).limit(25)).scalars().all()
+    arts = db.session.execute(select(ProfitArticulo).where(ProfitArticulo.empresa_id == eid).order_by(ProfitArticulo.codigo).limit(3000)).scalars().all()
     if arts:
-        secs.append(dict(titulo="Muestra del catálogo recibido", tabla=dict(cols=["Código", "Descripción", "Precio", "Existencia", "Por almacén", "IVA"], num=[2, 3], filas=[
+        secs.append(dict(titulo="Catálogo recibido de Profit Plus", tabla=dict(cols=["Código", "Descripción", "Precio", "Existencia", "Por almacén", "IVA"], num=[2, 3], filas=[
             dict(cells=[a.codigo, a.nombre, f"{a.moneda} {a.precio:,.2f}", f"{a.existencia.normalize():f}",
                         " · ".join(f"{k}: {Decimal(v).normalize():f}" for k, v in (a.por_almacen or {}).items()), a.alicuota]) for a in arts])))
     sincs = db.session.execute(select(ProfitSincronizacion).where(ProfitSincronizacion.empresa_id == eid).order_by(ProfitSincronizacion.id.desc()).limit(15)).scalars()
@@ -267,7 +267,7 @@ def pedidos():
     filtro = request.args.get("estado") or ""
     q = select(Pedido).where(Pedido.empresa_id == eid)
     if filtro in ESTADOS_PEDIDO: q = q.where(Pedido.estado == filtro)
-    ps = db.session.execute(q.order_by(Pedido.id.desc()).limit(300)).scalars().all()
+    ps = db.session.execute(q.order_by(Pedido.id.desc()).limit(3000)).scalars().all()
     cuenta = lambda e: db.session.execute(select(func.count()).select_from(Pedido).where(Pedido.empresa_id == eid, Pedido.estado == e)).scalar() or 0
     sub_ = {"Nuevo": "Por revisar", "Confirmado": "Listos para despachar", "Despachado": "Falta facturar en Profit", "Facturado en Profit": "Cerrados"}
     secs = [dict(kpis=[(e, cuenta(e), sub_[e]) for e in ("Nuevo", "Confirmado", "Despachado", "Facturado en Profit")]),
@@ -316,7 +316,7 @@ def pedidos_exportar():
 @requiere(*CLIENTE)
 def conversaciones():
     eid = eid_actual()
-    cs = db.session.execute(select(Contacto).where(Contacto.empresa_id == eid).order_by(Contacto.ultimo_mensaje.desc().nullslast()).limit(300)).scalars().all()
+    cs = db.session.execute(select(Contacto).where(Contacto.empresa_id == eid).order_by(Contacto.ultimo_mensaje.desc().nullslast()).limit(3000)).scalars().all()
     return pagina("Conversaciones", [dict(tabla=dict(cols=["Contacto", "Teléfono", "Tipo", "Cód. Profit", "Último mensaje", "Atención"], filas=[
         dict(url=url_for("web.conversacion", cid=c.id), cells=[c.nombre or "—", "+" + c.telefono, c.tipo.capitalize(), c.codigo_profit or "—",
                                                                   hora(c.ultimo_mensaje), "🙋 Pidió una persona" if c.atencion else ""]) for c in cs]))])
@@ -343,7 +343,7 @@ def conversacion(cid):
             else: raise ValueError("Acción inválida")
         intentar(hacer, {"responder": "Mensaje enviado", "ficha": "Contacto actualizado", "atendido": "Marcado como atendido"}.get(a, "Hecho"))
         return redirect(request.url)
-    ms = db.session.execute(select(Mensaje).where(Mensaje.empresa_id == eid, Mensaje.contacto_id == cid).order_by(Mensaje.id.desc()).limit(100)).scalars().all()
+    ms = db.session.execute(select(Mensaje).where(Mensaje.empresa_id == eid, Mensaje.contacto_id == cid).order_by(Mensaje.id.desc()).limit(500)).scalars().all()
     secs = [dict(pares=[("Teléfono", "+" + c.telefono), ("Nombre", c.nombre or "—"), ("Tipo", c.tipo.capitalize()), ("RIF", c.rif or "—"), ("Cliente en Profit", c.codigo_profit or "—")]),
             dict(titulo="Conversación (más reciente primero)", tabla=dict(cols=["Fecha", "De", "Mensaje", "Envío"], filas=[
                 dict(cells=[hora(m.ts), "Contacto" if m.direccion == "in" else "Empresa", m.texto[:600], "" if m.direccion == "in" else (m.resultado or "")]) for m in ms])),
@@ -375,7 +375,7 @@ def presupuestos():
             registrar("PRESUPUESTO", f"N°{pv.numero} {a}"); db.session.commit()
         intentar(hacer, "Presupuesto actualizado")
         return redirect(request.url)
-    ps = db.session.execute(select(Presupuesto).where(Presupuesto.empresa_id == eid).order_by(Presupuesto.id.desc()).limit(300)).scalars().all()
+    ps = db.session.execute(select(Presupuesto).where(Presupuesto.empresa_id == eid).order_by(Presupuesto.id.desc()).limit(3000)).scalars().all()
     filas = [dict(url=url_for("web.presupuesto", pid=p.id), cells=[p.numero, p.fecha.strftime("%Y-%m-%d"), p.cliente_nombre, SV.bs(p.total), p.estado]) for p in ps]
     secs = [dict(titulo="Presupuestos", tabla=dict(cols=["N°", "Fecha", "Cliente", "Total Bs", "Estado"], num=[3], filas=filas))]
     pend = [p for p in ps if p.estado in ("Borrador", "Enviado")]

@@ -66,6 +66,11 @@ Plantilla HTML propia con estilos en línea y versión de texto (`app/plantilla_
   reemplaza completa en una transacción; la clave de SQL Server nunca sale de la red del cliente.
 - Secretos (MFA, pasarela, conector, avisos) cifrados en reposo con Fernet. CSV exportado protegido contra fórmulas.
 
+## Tablas
+Todas las tablas con más de 5 filas traen búsqueda (sin importar acentos), filtros por columna (estado, cliente, origen…), rango de
+fechas Desde/Hasta, orden al tocar el encabezado, paginación de 10/25/50/100, conteo «Mostrando 1–25 de 120» y exportación a
+Excel (CSV con «;», protegido contra fórmulas) de lo filtrado. Se recuerda por pestaña. `static/tablas.js`, sin dependencias.
+
 ## Carga y errores
 - Barra de progreso arriba al cambiar de página o enviar un formulario, botón con giro mientras se procesa, aviso si el servidor tarda
   más de 6 s (p. ej. al despertar en Render), «Preparando la descarga…» en CSV/archivos y aviso de «sin conexión».
