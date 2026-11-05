@@ -32,6 +32,8 @@ def aviso_whatsapp(clave):
     if cfg is None: abort(404)
     e = db.session.get(Empresa, cfg.empresa_id)
     if e is None or not e.activa: return {"ok": True, "ignorado": "empresa"}
+    from ..licencia import permite
+    if not permite(e): return {"ok": True, "ignorado": "licencia"}
     if request.method == "GET": return {"ok": True}
     cuerpo = request.get_data(cache=True)
     if not OW.firma_valida(SV.cifrador().descifrar(cfg.secreto_cifrado), cuerpo, request.headers.get("X-OpenWA-Signature", "")): abort(403)
