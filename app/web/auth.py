@@ -19,7 +19,8 @@ def _vista(vista, **kw):
 
 
 def _destino(u):
-    return url_for("web.maestro") if u.rol == "Maestro" else url_for("web.inicio")
+    if u.rol == "Maestro": return url_for("web.maestro")
+    return url_for("web.inicio") if u.guia_vista else url_for("web.guia")      # la primera vez: la guía paso a paso
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -106,6 +107,7 @@ def mfa_configurar():
             session.pop("mfa_nuevo", None)
             iniciar_sesion(u); g.usuario = u
             registrar("MFA_ACTIVADO", "", empresa_id=u.empresa_id); db.session.commit(); N.seguridad(u, "mfa")
+            if not u.guia_vista and u.rol != "Maestro": N.bienvenida(u)
             return redirect(_destino(u))
     qr = segno.make(totp.uri_otpauth(sec, u.username), error="m").svg_data_uri(scale=5, border=2)
     return _vista("mfa_configurar", qr=qr, secreto=sec)

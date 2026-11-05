@@ -273,6 +273,60 @@ th[aria-sort=ascending],th[aria-sort=descending]{color:var(--texto)}
 .pasos li.hecho .marca-paso{background:var(--verde);border-color:var(--verde);color:#fff}
 .pasos li.hecho .marca-paso::before{content:"✓"}
 
+/* ============================================================ guía de inicio */
+.guia-progreso{display:flex;align-items:center;gap:16px;background:var(--papel);border:1px solid var(--linea);border-radius:var(--radio);padding:14px 18px;margin-bottom:18px;box-shadow:var(--sombra)}
+.guia-progreso-txt{white-space:nowrap;color:var(--suave)}
+.guia-progreso-txt b{color:var(--texto)}
+.guia-barra{flex:1;height:10px;border:0;border-radius:999px;background:var(--fondo-2);overflow:hidden;appearance:none;-webkit-appearance:none}
+.guia-barra::-webkit-progress-bar{background:var(--fondo-2);border-radius:999px}
+.guia-barra::-webkit-progress-value{background:linear-gradient(90deg,var(--menta),var(--mandarina));border-radius:999px;transition:width .4s}
+.guia-barra::-moz-progress-bar{background:linear-gradient(90deg,var(--menta),var(--mandarina));border-radius:999px}
+.guia{display:grid;grid-template-columns:270px minmax(0,1fr);gap:20px;align-items:start}
+.guia-indice{position:sticky;top:84px;background:var(--papel);border:1px solid var(--linea);border-radius:var(--radio);padding:10px;box-shadow:var(--sombra)}
+.guia-indice ol{list-style:none;margin:0;padding:0;display:grid;gap:2px;position:relative}
+.guia-indice a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:var(--texto);font-size:.9rem;font-weight:550;line-height:1.3}
+.guia-indice a:hover{background:var(--fondo);text-decoration:none}
+.guia-num{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:.78rem;font-weight:800;border:2px solid var(--linea-2);color:var(--suave);background:var(--papel)}
+.guia-indice li.hecho .guia-num{background:var(--menta);border-color:var(--menta);color:var(--menta-tinta)}
+.guia-indice li.hecho a{color:var(--suave)}
+.guia-pasos{display:grid;gap:16px;min-width:0}
+.guia-paso{scroll-margin-top:84px;margin:0;border-left:4px solid var(--linea-2)}
+.guia-paso.hecho{border-left-color:var(--menta)}
+.guia-paso:target{box-shadow:var(--sombra-alta),0 0 0 3px var(--menta-claro)}
+.guia-cab{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.guia-cab>div{flex:1;min-width:0}
+.guia-cab h2{margin:0;font-size:1.2rem}
+.guia-cab h2::before{display:none}
+.guia-etq{font-size:.72rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.guia-ico{flex:none;width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-style:normal;color:#fff;
+  background:linear-gradient(145deg,var(--menta),var(--menta-osc));box-shadow:0 6px 16px rgba(14,159,122,.28)}
+.guia-ico .i{width:22px;height:22px}
+.guia-texto{font-size:1rem;line-height:1.65;color:var(--texto);max-width:75ch}
+.guia-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 28px;margin:6px 0 4px}
+.guia-cols h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--suave);margin:4px 0 8px}
+.guia-lista{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.guia-lista li{display:flex;gap:10px;line-height:1.5}
+.guia-lista li::before{content:"✓";flex:none;width:20px;height:20px;margin-top:2px;border-radius:50%;background:var(--menta-claro);color:var(--menta-osc);font-weight:800;font-size:.72rem;display:grid;place-items:center}
+.guia-no li::before{content:"✕";background:var(--rojo-claro);color:var(--rojo)}
+.guia-consejo{display:flex;gap:10px;align-items:flex-start;background:var(--ambar-claro);border:1px solid #F6DFA6;color:#5E4300;border-radius:12px;padding:11px 14px;margin:12px 0 0;font-size:.92rem;line-height:1.55}
+.guia-consejo .i{color:var(--mandarina);margin-top:2px}
+.guia-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.guia-fin{text-align:center}
+.guia-fin h2{justify-content:center}.guia-fin h2::before{display:none}
+.guia-fin .nota{margin:0 auto 16px}
+/* teléfono de ejemplo (conversación del bot) */
+.wa-telefono{max-width:430px;margin:8px 0 6px;border-radius:26px;overflow:hidden;border:8px solid var(--tinta);box-shadow:var(--sombra-alta);background:#ECE5DD}
+.wa-cab{display:flex;align-items:center;gap:10px;background:#075E54;color:#fff;padding:10px 14px}
+.wa-cab small{display:block;font-size:.74rem;opacity:.8}
+.wa-cab b{font-size:.92rem}
+.wa-avatar{width:34px;height:34px;border-radius:50%;background:var(--menta);color:var(--menta-tinta);display:grid;place-items:center;font-weight:800}
+.wa-chat{display:flex;flex-direction:column;gap:6px;padding:14px 12px;max-height:520px;overflow-y:auto;background:#ECE5DD;
+  background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:14px 14px}
+.wa-msj{max-width:85%;padding:7px 10px 8px;border-radius:10px;font-size:.86rem;line-height:1.45;color:#111B21;box-shadow:0 1px .5px rgba(0,0,0,.13);word-wrap:break-word}
+.wa-cliente{align-self:flex-end;background:#D9FDD3;border-top-right-radius:2px}
+.wa-bot{align-self:flex-start;background:#fff;border-top-left-radius:2px}
+@media (max-width:1000px){.guia{grid-template-columns:1fr}.guia-indice{position:static}.guia-indice ol{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}}
+
 /* ============================================================ QR de WhatsApp */
 .qr-wa{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
 .qr-caja{background:#fff;border:1px solid var(--linea);border-radius:18px;padding:14px;width:300px;max-width:100%;aspect-ratio:1;display:grid;place-items:center;

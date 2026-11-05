@@ -48,6 +48,7 @@ class Usuario(db.Model):
     token_activacion_hash = db.Column(db.Text, unique=True)       # SHA-256 del enlace de activación (un uso)
     token_activacion_vence = db.Column(db.DateTime(timezone=True))
     ultimo_acceso = db.Column(db.DateTime(timezone=True))
+    guia_vista = db.Column(db.Boolean, nullable=False, default=False, server_default="false")   # terminó la guía de inicio
     creado = db.Column(db.DateTime(timezone=True), default=ahora, nullable=False)
     __table_args__ = (CheckConstraint(f"rol IN {ROLES}", name="ck_usuario_rol"),
                       CheckConstraint("(rol = 'Maestro') = (empresa_id IS NULL)", name="ck_usuario_empresa"))

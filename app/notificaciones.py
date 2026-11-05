@@ -156,3 +156,20 @@ def whatsapp_cambio(cfg, anterior, nuevo):
         encolar(correos_empresa(cfg.empresa_id), "El WhatsApp del bot está conectado",
                 f"El número de WhatsApp de {e.razon_social if e else 'la empresa'} volvió a quedar vinculado. El bot ya responde a los clientes.",
                 filas=[("Número", f"+{cfg.numero_visible}" if cfg.numero_visible else "—"), ("Fecha", _hora())], aviso=("info", "Bot en línea"))
+
+
+def bienvenida(u: Usuario):
+    """Al activar su cuenta, el administrador (u operador) recibe los primeros pasos y el enlace a la guía."""
+    e = db.session.get(Empresa, u.empresa_id) if u.empresa_id else None
+    if not u.email or e is None: return
+    if u.rol == "Administrador":
+        pasos = "1) Vincule el WhatsApp de la empresa con el código QR.\n\n2) Conecte Profit Plus instalando el conector (solo lectura).\n\n" \
+                "3) Elija almacenes y lista de precios, y personalice el saludo del bot.\n\n4) Invite a su equipo y haga una prueba escribiéndole al número."
+    else:
+        pasos = "En Pedidos verá lo que piden los clientes por WhatsApp; en Conversaciones, a quienes piden hablar con una persona.\n\n" \
+                "Cambie el estado de cada pedido (Confirmado, Despachado, Facturado en Profit) y el cliente recibe el aviso por WhatsApp."
+    encolar([u.email], f"Bienvenido a Surtia, {e.razon_social}",
+            f"Su cuenta ya está activa. Surtia será el asistente de WhatsApp de {e.razon_social}: atiende a sus clientes a cualquier hora "
+            "con el catálogo, las existencias y los precios de Profit Plus, y le deja los pedidos listos para facturar.\n\n" + pasos,
+            boton=("Abrir la guía paso a paso", _url("web.guia")), aviso=("info", "Primeros pasos"),
+            nota="La guía también está en el menú «Guía de inicio» cuando la necesite.")

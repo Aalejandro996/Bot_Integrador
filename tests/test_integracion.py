@@ -103,6 +103,10 @@ def test_recorrido_completo(app):
     assert "Active su cuenta · Surtia" in asuntos("admin@orituco.test") and _enlace(r) in texto_de("admin@orituco.test")   # el enlace llega por correo
     assert "General de Suministros Orituco" in texto_de("admin@orituco.test")
     adm, sec_adm = _activar(app, _enlace(r))
+    t = adm.get("/guia").get_data(as_text=True)                                    # guía paso a paso del administrador
+    assert "Vincule el WhatsApp de la empresa" in t and "Así conversará con sus clientes" in t and "wa-msj" in t
+    assert "Bienvenido a Surtia, General de Suministros Orituco, C.A. · Surtia" in asuntos("admin@orituco.test")
+    assert adm.post("/guia").headers["Location"].endswith("/")
     eid = _uno(app, "SELECT id FROM empresas WHERE rif='J-12345678-0'")
     assert "Vincular el WhatsApp de la empresa" in adm.get("/").get_data(as_text=True)
     assert adm.get("/maestro").status_code == 403                                        # la consola es solo de Gigadevs

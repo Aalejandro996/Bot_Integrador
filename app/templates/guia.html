@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block titulo %}Guía de inicio{% endblock %}
+{% block contenido %}
+<div class="cabecera"><div><div class="ruta">{{ g.empresa.razon_social }}</div>
+  <h1>Bienvenido a Surtia{% if g.usuario.nombre %}, {{ g.usuario.nombre.split()[0] }}{% endif %} 👋</h1>
+  <p class="subtitulo">{{ icono('rayo') }}En {{ total }} pasos le mostramos qué hará su asistente de WhatsApp y cómo dejarlo funcionando.</p></div></div>
+
+<section class="guia-progreso" aria-label="Avance de la guía">
+  <div class="guia-progreso-txt"><b>{{ hechos }} de {{ total }}</b> pasos listos</div>
+  <progress class="guia-barra" max="{{ total }}" value="{{ hechos }}">{{ hechos }} de {{ total }}</progress>
+</section>
+
+<div class="guia">
+  <nav class="guia-indice" aria-label="Pasos">
+    <ol>{% for p in pasos %}<li class="{{ 'hecho' if p.hecho }}"><a href="#paso-{{ p.id }}"><span class="guia-num">{{ '✓' if p.hecho else p.n }}</span>{{ p.titulo }}</a></li>{% endfor %}</ol>
+  </nav>
+
+  <div class="guia-pasos">
+  {% for p in pasos %}
+    <section class="tarjeta guia-paso{{ ' hecho' if p.hecho }}" id="paso-{{ p.id }}" aria-labelledby="t-{{ p.id }}">
+      <header class="guia-cab">
+        <i class="guia-ico">{{ icono(p.icono) }}</i>
+        <div><span class="guia-etq">Paso {{ p.n }} de {{ total }}</span><h2 id="t-{{ p.id }}">{{ p.titulo }}</h2></div>
+        {% if p.id not in ('conozca', 'demo', 'atender') %}<span class="estado {{ 'ok' if p.hecho else 'espera' }}">{{ icono('ok' if p.hecho else 'reloj') }}{{ 'Listo' if p.hecho else 'Pendiente' }}</span>{% endif %}
+      </header>
+      <p class="guia-texto">{{ p.texto }}</p>
+      {% if p.demo %}
+        <div class="wa-telefono" role="img" aria-label="Ejemplo de conversación del bot por WhatsApp">
+          <div class="wa-cab"><span class="wa-avatar">{{ g.empresa.razon_social[:1] }}</span><div><b>{{ g.empresa.razon_social }}</b><small>en línea</small></div></div>
+          <div class="wa-chat">{% for quien, texto in chat %}<div class="wa-msj wa-{{ quien }}">{{ texto|whatsapp }}</div>{% endfor %}</div>
+        </div>
+      {% endif %}
+      {% if p.hace %}<div class="guia-cols">
+        <div><h3>{{ 'Lo que hará el bot' if p.id == 'conozca' else 'Qué hacer' }}</h3><ul class="guia-lista">{% for h in p.hace %}<li>{{ h }}</li>{% endfor %}</ul></div>
+        {% if p.no_hace %}<div><h3>Lo que no hace</h3><ul class="guia-lista guia-no">{% for h in p.no_hace %}<li>{{ h }}</li>{% endfor %}</ul></div>{% endif %}
+      </div>{% endif %}
+      {% if p.consejo %}<p class="guia-consejo">{{ icono('rayo') }}<span>{{ p.consejo }}</span></p>{% endif %}
+      <div class="guia-acc">
+        {% if p.url %}<a class="btn{{ ' sec' if p.hecho }}" href="{{ p.url }}">{{ icono(p.icono) }}{{ p.boton }}</a>{% endif %}
+        {% if not loop.last %}<a class="btn sec" href="#paso-{{ pasos[loop.index].id }}" data-sin-carga>Siguiente paso {{ icono('entrar') }}</a>{% endif %}
+      </div>
+    </section>
+  {% endfor %}
+    <section class="tarjeta guia-fin">
+      <h2>¿Todo listo?</h2>
+      <p class="nota">Puede volver a esta guía cuando quiera desde el menú <b>Guía de inicio</b>. Los pasos pendientes se marcan solos al completarlos.</p>
+      <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>{{ icono('ok') }}Terminar la guía e ir a mi panel</button></form>
+    </section>
+  </div>
+</div>
+{% endblock %}

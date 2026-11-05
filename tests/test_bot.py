@@ -66,3 +66,10 @@ def test_conversacion_natural():
     assert ev == [{"atencion": True}]
     assert B.responder("catalogo", "cliente", {}, CAT, "Bodega")[0][0].startswith("📦")
     assert "le entendí" in B.responder("zxq", "cliente", {}, CAT, "Bodega")[0][0]
+
+
+def test_guia_conversacion_demo():
+    from app.web.guia import DEMO, conversacion_demo
+    chat = conversacion_demo("Bodega", {})
+    assert chat[0] == ("cliente", "Buenas tardes") and any("Pedido recibido" in t for q, t in chat if q == "bot")
+    assert conversacion_demo("Bodega", DEMO)[-1][0] == "bot"

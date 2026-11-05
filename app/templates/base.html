@@ -9,7 +9,7 @@
   <a class="marca" href="/"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="34" height="34"><span>surt<em>i</em>a<sup>™</sup></span></a>
   {% if u and u.rol != 'Maestro' %}
   <div class="org"><b>{{ g.empresa.razon_social }}</b><span class="chip">{{ u.rol }}</span></div>
-  <nav class="nav-grupo"><span>Atención</span>{{ item('web.inicio', 'Panel', 'panel') }}{{ item('web.pedidos', 'Pedidos', 'paquete') }}
+  <nav class="nav-grupo"><span>Atención</span>{{ item('web.inicio', 'Panel', 'panel') }}{{ item('web.guia', 'Guía de inicio', 'brujula') }}{{ item('web.pedidos', 'Pedidos', 'paquete') }}
     {{ item('web.conversaciones', 'Conversaciones', 'chat') }}{{ item('web.presupuestos', 'Presupuestos', 'documento') }}</nav>
   {% if u.rol == 'Administrador' %}<nav class="nav-grupo"><span>Configuración</span>{{ item('web.whatsapp', 'WhatsApp', 'whatsapp') }}
     {{ item('web.profit', 'Profit Plus', 'base') }}{{ item('web.usuarios', 'Usuarios', 'usuarios') }}</nav>{% endif %}

@@ -15,6 +15,9 @@ def main():
     app = create_app()
     with app.app_context(), app.test_request_context(base_url=app.config["APP_BASE_URL"]):
         db.create_all()
+        # columnas nuevas en tablas que ya existían (create_all no altera tablas)
+        for sql in ("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS guia_vista BOOLEAN NOT NULL DEFAULT false",):
+            db.session.execute(db.text(sql))
         if db.session.get(Parametros, 1) is None: db.session.add(Parametros(id=1, iva_general=16, iva_reducida=8, iva_adicional=15))
         if db.session.get(ProfitPlataforma, 1) is None: db.session.add(ProfitPlataforma(id=1, activa=True, intervalo_min=15))
         nombre = (app.config.get("MAESTRO_USUARIO") or "").strip().lower()

@@ -39,5 +39,15 @@ def kpi_estilo(etiqueta, valor, n=0) -> tuple[str, str]:
     return "actividad", TONOS[n % len(TONOS)]
 
 
+def formato_whatsapp(texto: str) -> Markup:
+    """*negrita*, _cursiva_ y saltos de línea de WhatsApp → HTML (se escapa primero: nunca pasa HTML del texto)."""
+    import re
+    t = str(escape(texto or ""))
+    t = re.sub(r"\*([^*\n]+)\*", r"<b>\1</b>", t)
+    t = re.sub(r"(?<![\w/])_([^_\n]+)_(?!\w)", r"<i>\1</i>", t)
+    return Markup(t.replace("\n", "<br>"))
+
+
 def registrar(app):
     app.jinja_env.globals.update(icono=icono, kpi_estilo=kpi_estilo)
+    app.jinja_env.filters["whatsapp"] = formato_whatsapp

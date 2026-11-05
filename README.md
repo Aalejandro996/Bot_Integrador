@@ -66,6 +66,15 @@ Plantilla HTML propia con estilos en línea y versión de texto (`app/plantilla_
   reemplaza completa en una transacción; la clave de SQL Server nunca sale de la red del cliente.
 - Secretos (MFA, pasarela, conector, avisos) cifrados en reposo con Fernet. CSV exportado protegido contra fórmulas.
 
+## Guía de inicio
+Al activar su cuenta, el administrador entra a **Guía de inicio** (también en el menú): 9 pasos con lo que hará el bot, lo que no hace,
+cómo vincular WhatsApp, conectar Profit, elegir almacenes y precios, personalizar el saludo, invitar al equipo, atender pedidos y
+probar. Cada paso se marca solo según el estado real, y hay una conversación de ejemplo generada por el bot con el catálogo de la
+empresa. El operador ve una versión corta. También recibe un correo de bienvenida con los primeros pasos.
+
+## Otros sistemas además de Profit
+Estudio de factibilidad y guía para promoción: [`docs/ESTUDIO_MULTISISTEMA.md`](docs/ESTUDIO_MULTISISTEMA.md).
+
 ## Tablas
 Todas las tablas con más de 5 filas traen búsqueda (sin importar acentos), filtros por columna (estado, cliente, origen…), rango de
 fechas Desde/Hasta, orden al tocar el encabezado, paginación de 10/25/50/100, conteo «Mostrando 1–25 de 120» y exportación a
