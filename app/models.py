@@ -27,6 +27,7 @@ class Empresa(db.Model):
     correo = db.Column(db.Text)
     activa = db.Column(db.Boolean, nullable=False, default=True)
     creada = db.Column(db.DateTime(timezone=True), default=ahora, nullable=False)
+    licencia_token = db.Column(db.Text)          # licencia firmada por la Consola Maestra de Gigadevs (app/licencia.py)
 
 
 class Usuario(db.Model):

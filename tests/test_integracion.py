@@ -110,6 +110,30 @@ def test_recorrido_completo(app):
     eid = _uno(app, "SELECT id FROM empresas WHERE rif='J-12345678-0'")
     assert "Vincular el WhatsApp de la empresa" in adm.get("/").get_data(as_text=True)
     assert adm.get("/maestro").status_code == 403                                        # la consola es solo de Gigadevs
+    # --- licencia de Surtia (Consola Maestra de Gigadevs): el Maestro la carga; con el control activo, sin licencia no se entra
+    import base64, json as _json, time as _t
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    priv = Ed25519PrivateKey.generate()
+    os.environ["PRODUCT_LICENSE_PUBLIC_KEY"] = base64.urlsafe_b64encode(priv.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw)).decode().rstrip("=")
+    def lic(**kw):
+        c = _json.dumps({"producto": "surtia", "tipo_sujeto": "organizacion", "sujeto": "J-12345678-0", "estado": "activa",
+                         "exp": int(_t.time()) + 86400, "suscripcion": 7, **kw}, sort_keys=True, separators=(",", ":")).encode()
+        b = lambda x: base64.urlsafe_b64encode(x).rstrip(b"=").decode()
+        return f"{b(c)}.{b(priv.sign(c))}"
+    try:
+        assert "Sin licencia" in root.get("/maestro/empresas").get_data(as_text=True)
+        os.environ["SURTIA_LICENSE_ENFORCE"] = "1"
+        r = adm.get("/")
+        assert r.status_code == 402 and "La licencia de Surtia no está activa" in r.get_data(as_text=True)
+        r = root.post("/maestro/empresas", data={"accion": "licencia", "eid": eid, "token": lic(sujeto="J-99999999-9")}, follow_redirects=True)
+        assert "otra empresa" in r.get_data(as_text=True)
+        r = root.post("/maestro/empresas", data={"accion": "licencia", "eid": eid, "token": lic()}, follow_redirects=True)
+        assert "cargada: vence el" in r.get_data(as_text=True) and "Vigente hasta" in r.get_data(as_text=True)
+        assert adm.get("/").status_code == 200
+    finally:
+        os.environ.pop("SURTIA_LICENSE_ENFORCE", None)
     assert "no está configurada" in adm.get("/whatsapp").get_data(as_text=True)
     # --- pasarela OpenWA propia (simulada)
     pas = {"estado": "created", "telefono": None, "webhook": None, "enviados": [], "n": 0}

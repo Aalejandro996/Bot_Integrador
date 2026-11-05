@@ -32,6 +32,10 @@ def create_app(config=None):
         g.nonce = secrets.token_urlsafe(12)
         if request.endpoint in ("static", "web.salud"): return
         cargar_usuario()
+        from . import licencia
+        if g.get("empresa") is not None and not (request.endpoint or "").startswith("auth.") and not licencia.permite(g.empresa):
+            from .errores import pagina
+            return pagina(402)
 
     @app.after_request
     def _cabeceras(r):

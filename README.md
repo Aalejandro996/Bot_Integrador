@@ -52,6 +52,15 @@ Plantilla HTML propia con estilos en línea y versión de texto (`app/plantilla_
 4. Consola → **Empresas** → nueva empresa con su administrador → envíele el enlace de activación.
 5. El cliente vincula su WhatsApp con el QR e instala el conector (`conector_profit/LEAME.md`).
 
+## Licencia (Consola Maestra de Gigadevs)
+Surtia es uno de los sistemas de la Consola Maestra de Gigadevs (en Contax): allí se crean las suscripciones por empresa (sujeto =
+RIF de la empresa, módulos, vigencia) y se descarga la licencia firmada (Ed25519). En Surtia: Consola → **Empresas** → «Licencia de la
+empresa» → pegar el archivo. La tabla muestra si está vigente y hasta cuándo (`app/licencia.py`).
+- `SURTIA_LICENSE_ENFORCE=1` activa el control: sin licencia vigente la empresa no entra (página 402) y el bot no atiende. Apagado por
+  defecto para no interrumpir a quien ya trabaja; si el servidor de licencias no responde, no se corta el servicio.
+- Clave pública: `PRODUCT_LICENSE_PUBLIC_KEY` o, si falta, se consulta a `PRODUCT_LICENSE_SERVER_URL` (por defecto
+  `https://erp-licencias.onrender.com/v1/clave-publica`). La clave privada nunca sale del servidor de licencias.
+
 ## Seguridad
 - Contraseñas Argon2id (≥12 caracteres, 3 clases, sin el usuario); **MFA TOTP obligatorio** para todos; bloqueo de 15 min tras 5
   fallos; el paso intermedio (clave correcta, falta MFA) vence a los 5 min; códigos TOTP de un solo uso.
