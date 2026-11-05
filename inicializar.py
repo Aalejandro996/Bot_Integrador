@@ -16,7 +16,16 @@ def main():
     with app.app_context(), app.test_request_context(base_url=app.config["APP_BASE_URL"]):
         db.create_all()
         # columnas nuevas en tablas que ya existían (create_all no altera tablas)
-        for sql in ("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS guia_vista BOOLEAN NOT NULL DEFAULT false",):
+        from app.models import ESTADOS_PEDIDO
+        for sql in ("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS guia_vista BOOLEAN NOT NULL DEFAULT false",
+                    "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS sistema TEXT NOT NULL DEFAULT 'profit'",
+                    "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS opciones JSON NOT NULL DEFAULT '{}'",
+                    "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS credenciales_cifradas TEXT",
+                    "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS ultimo_intento TIMESTAMPTZ",
+                    # «Facturado en Profit» → «Facturado» (Surtia ya no es solo para Profit Plus)
+                    "ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS ck_pedido_estado",
+                    "UPDATE pedidos SET estado = 'Facturado' WHERE estado = 'Facturado en Profit'",
+                    f"ALTER TABLE pedidos ADD CONSTRAINT ck_pedido_estado CHECK (estado IN {ESTADOS_PEDIDO})"):
             db.session.execute(db.text(sql))
         if db.session.get(Parametros, 1) is None: db.session.add(Parametros(id=1, iva_general=16, iva_reducida=8, iva_adicional=15))
         if db.session.get(ProfitPlataforma, 1) is None: db.session.add(ProfitPlataforma(id=1, activa=True, intervalo_min=15))

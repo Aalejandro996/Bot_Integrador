@@ -9,5 +9,6 @@ gunicorn==26.2.0
 python-dotenv==1.2.4
 segno==1.6.6           # QR de la verificación en dos pasos (SVG)
 pypdf==6.21.4          # lectura de las órdenes de compra en PDF
+openpyxl==3.1.5        # catálogos en Excel (.xlsx) que sube el equipo de Surtia
 tzdata==2025.2         # hora de Venezuela aunque el servidor no traiga la base de zonas
 pytest==9.2.0

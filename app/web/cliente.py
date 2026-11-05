@@ -1,8 +1,7 @@
-"""Pantallas de la empresa cliente: panel, WhatsApp (QR y opciones), Profit Plus, pedidos, conversaciones, presupuestos y usuarios."""
+"""Pantallas de la empresa cliente: panel, WhatsApp (QR y opciones), catálogo (solo lectura), pedidos, conversaciones, presupuestos y usuarios."""
 import re
 from datetime import timedelta
 from decimal import Decimal
-from pathlib import Path
 
 from flask import Response, abort, current_app, flash, g, redirect, render_template, request, url_for
 from sqlalchemy import func, select
@@ -10,18 +9,15 @@ from sqlalchemy import func, select
 from .. import notificaciones as N
 from .. import openwa as OW
 from .. import servicios as SV
+from .. import sistemas as SIS
 from ..extensions import db
-from ..models import (ESTADOS_PEDIDO, ESTADOS_PRESUPUESTO, Contacto, Empresa, Mensaje, Pedido, Presupuesto, ProfitArticulo, ProfitSincronizacion,
+from ..models import (ESTADOS_PEDIDO, ESTADOS_PRESUPUESTO, Contacto, Empresa, Mensaje, Pedido, Presupuesto, ProfitArticulo,
                       Usuario, ahora)
 from ..seguridad import eid_actual, nuevo_enlace_activacion, registrar, requiere
 from ..telefono import ErrorWhatsapp
 from . import F, bp, campo, hora, intentar, oculto, pagina
 
 CLIENTE = ("Administrador", "Operador")
-CARPETA_CONECTOR = Path(__file__).resolve().parents[2] / "conector_profit"
-# Sin extensión en la URL (.py, .sql, .ini): así ningún filtro de rastreos las confunde con un escaneo.
-DESCARGAS = {"conector": ("surtia_conector.py", "text/x-python"), "usuario-sql": ("crear_usuario_lectura.sql", "text/plain"),
-             "instrucciones": ("LEAME.md", "text/markdown"), "requisitos": ("requirements.txt", "text/plain")}
 
 
 def atraso(ts, intervalo):
@@ -42,12 +38,11 @@ def inicio():
     msgs = cuenta(select(func.count()).select_from(Mensaje).where(Mensaje.empresa_id == eid, Mensaje.ts > desde))
     atencion = db.session.execute(select(Contacto).where(Contacto.empresa_id == eid, Contacto.atencion.is_(True)).order_by(Contacto.ultimo_mensaje.desc()).limit(10)).scalars().all()
     pasos = [("Vincular el WhatsApp de la empresa (código QR)", "hecho" if cfg and cfg.sesion_estado == "ready" else "pendiente"),
-             ("Activar la integración con Profit Plus", "hecho" if con else "pendiente"),
-             ("Instalar el conector en el servidor de Profit (primera foto recibida)", "hecho" if con and con.ultima_sync else "pendiente")]
+             ("Conexión con su sistema (la hace el equipo de Surtia)", "hecho" if con and con.ultima_sync else "pendiente")]
     pedidos_hoy = cuenta(select(func.count()).select_from(Pedido).where(Pedido.empresa_id == eid, Pedido.creado_en > desde))
     secs = [dict(kpis=[("WhatsApp", OW.ESTADOS.get(cfg.sesion_estado, "Sin vincular") if cfg else "Sin vincular",
                         ("+" + cfg.numero_visible) if cfg and cfg.numero_visible else "Número de la empresa"),
-                       ("Profit: última foto", atraso(con.ultima_sync, plat.intervalo_min if plat else 15) if con else "Sin conectar",
+                       ("Catálogo", atraso(con.ultima_sync, plat.intervalo_min if plat else 15) if con and con.ultima_sync else "En preparación",
                         f"{con.n_articulos} artículos" if con and con.ultima_sync else "Catálogo e inventario"),
                        ("Pedidos nuevos", nuevos, f"{pedidos_hoy} en las últimas 24 h"), ("Mensajes 24 h", msgs, "Recibidos y enviados"),
                        ("Piden una persona", len(atencion), "Esperan respuesta" if atencion else "Nadie en espera")])]
@@ -148,97 +143,43 @@ def whatsapp_estado():
         return {"estado": cfg.sesion_estado or "desconocido", "texto": "Sin respuesta de la pasarela; reintentando…", "qr": None}
 
 
-# ====================================================================== Profit Plus
-@bp.route("/profit", methods=["GET", "POST"])
-@requiere("Administrador")
+# ====================================================================== catálogo (solo lectura: la conexión la administra Surtia)
+@bp.route("/profit")
+@requiere(*CLIENTE)
 def profit():
+    return redirect(url_for("web.catalogo"))
+
+
+@bp.route("/catalogo")
+@requiere(*CLIENTE)
+def catalogo():
     eid = eid_actual()
     c, plat = SV.profit_conexion(eid), SV.profit_plataforma()
-    if request.method == "POST":
-        a = F.get("accion")
-        def hacer():
-            nonlocal c
-            if plat is None or not plat.activa: raise ValueError("La integración con Profit Plus no está habilitada. Contacte a Gigadevs.")
-            if a == "activar":
-                c = SV.crear_conexion_profit(eid); c.activo = True; registrar("PROFIT_ACTIVADO", c.conector_id)
-            elif c is None: raise ValueError("Primero active la integración")
-            elif a == "guardar":
-                elegidos = [x.strip()[:10] for x in request.form.getlist("almacenes") if x.strip()]
-                elegidos += [x.strip()[:10] for x in (F.get("almacenes_txt") or "").replace(";", ",").split(",") if x.strip()]
-                c.almacenes = sorted(set(elegidos))[:50]
-                lp = (F.get("lista_precio") or "").strip()[:10]
-                if not lp: raise ValueError("Indique la lista de precios de Profit (co_precio, p. ej. 01)")
-                c.lista_precio, c.restar_comprometido = lp, F.get("restar_comprometido", "1") == "1"
-                c.solo_con_existencia, c.activo = F.get("solo_con_existencia") == "1", F.get("activo", "1") == "1"
-                registrar("PROFIT_CONFIGURADO", f"almacenes={','.join(c.almacenes) or 'todos'} lista={c.lista_precio} activo={c.activo}")
-            elif a == "rotar":
-                c.secreto_cifrado = SV.cifrador().cifrar(__import__("secrets").token_urlsafe(32)); registrar("PROFIT_CLAVE_ROTADA", "")
-            else: raise ValueError("Acción inválida")
-            db.session.commit()
-        intentar(hacer, {"activar": "Integración activada: descargue la configuración del conector", "guardar": "Configuración guardada: el conector la aplicará en su próxima lectura",
-                         "rotar": "Clave renovada: descargue de nuevo surtia_conector.ini y reemplácelo en el servidor de Profit"}.get(a, "Hecho"))
-        return redirect(request.url)
-    if plat is None or not plat.activa:
-        return pagina("Profit Plus", [dict(titulo="Integración con Profit Plus", nota="La integración todavía no está habilitada. Contacte a soporte de Gigadevs.")])
+    intervalo = plat.intervalo_min if plat else 15
     if c is None:
-        return pagina("Profit Plus", [dict(titulo="Conectar Profit Plus (solo lectura)", abierto=True,
-            nota="El bot usará el catálogo de Profit Plus: artículos, existencias por almacén, precios de venta y clientes, actualizados cada "
-                 f"{plat.intervalo_min} minutos. Nada se escribe ni se envía a Profit Plus; la factura fiscal se sigue emitiendo en Profit. "
-                 "Se instala un conector pequeño en el servidor de Profit: solo hace consultas de lectura y envía los datos por HTTPS. "
-                 "No hay que abrir puertos ni exponer SQL Server a Internet.",
-            form=dict(action=request.path, boton="Activar integración", campos=[oculto("activar")]))])
+        return pagina("Catálogo", [dict(titulo="Estamos preparando la conexión con su sistema", nota=(
+            "El equipo de Surtia conecta su sistema administrativo por usted: no tiene que instalar ni configurar nada. "
+            "Cuando esté listo, aquí verá los productos, precios y existencias que usa el bot. Si tiene dudas, escríbanos por WhatsApp."))],
+            subtitulo="Lo que el bot ofrece a sus clientes")
+    sis = SIS.SISTEMAS.get(c.sistema, SIS.SISTEMAS["profit"])
+    nombre = SIS.nombre(c.sistema, c.opciones)
     cuenta = lambda *w: db.session.execute(select(func.count()).select_from(ProfitArticulo).where(ProfitArticulo.empresa_id == eid, *w)).scalar() or 0
-    secs = [dict(kpis=[("Conector", ("Activo" if c.activo else "Pausado") + (" · con error" if c.ultimo_estado == "error" else "")),
-                       ("Última foto", atraso(c.ultima_sync, plat.intervalo_min)), ("Artículos", c.n_articulos),
-                       ("Con existencia", cuenta(ProfitArticulo.existencia > 0)), ("Clientes", c.n_clientes)]),
-            dict(pares=[("Último contacto del conector", hora(c.ultimo_contacto)), ("Último error", c.ultimo_error or "—"),
-                        ("Equipo / versión", f"{c.agente_equipo or '—'} · {c.agente_version or '—'}"), ("ID del conector", c.conector_id),
-                        ("Artículos con precio en divisas", f"{cuenta(ProfitArticulo.moneda != 'VES')} (en Bs a la tasa BCV del día)")])]
-    disp = c.disponibles or {}
-    alms = [(x["codigo"], f"{x['codigo']} · {x['nombre']}") for x in disp.get("almacenes") or []]
-    listas = [(x["codigo"], f"{x['codigo']} · {x['nombre']}") for x in disp.get("listas_precio") or []]
-    campos = [oculto("guardar"), campo("activo", "Conector", "select", opciones=[("1", "Activo"), ("0", "Pausado: el bot no ofrece productos")], valor="1" if c.activo else "0")]
-    campos.append(campo("almacenes", "Almacenes que cuentan para la existencia (ninguno marcado = todos los de venta)", "checks", req=False, opciones=alms, valor=c.almacenes) if alms
-                  else campo("almacenes_txt", "Almacenes (co_alma separados por coma; vacío = todos los de venta)", req=False, valor=", ".join(c.almacenes or [])))
-    campos += [campo("lista_precio", "Lista de precios de venta", "select", opciones=listas, valor=c.lista_precio) if listas else campo("lista_precio", "Lista de precios (co_precio)", valor=c.lista_precio),
-               campo("restar_comprometido", "Existencia que ve el cliente", "select", opciones=[("1", "Actual menos lo comprometido"), ("0", "Existencia actual")], valor="1" if c.restar_comprometido else "0"),
-               campo("solo_con_existencia", "Artículos que ofrece el bot", "select", opciones=[("0", "Todos los que tienen precio (los agotados se marcan)"), ("1", "Solo los que tienen existencia")],
-                     valor="1" if c.solo_con_existencia else "0")]
-    secs.append(dict(titulo="Qué toma el bot de Profit", abierto=True, nota="Los almacenes y listas aparecen aquí cuando el conector se conecta por primera vez.",
-                     form=dict(action=request.path, boton="Guardar", campos=campos)))
-    enlaces = [dict(url=url_for("web.profit_descarga", archivo="configuracion"), texto="⬇ surtia_conector.ini (configuración con su clave)")]
-    enlaces += [dict(url=url_for("web.profit_descarga", archivo=k), texto="⬇ " + v[0]) for k, v in DESCARGAS.items()]
-    if plat.url_instalador: enlaces.insert(0, dict(url=plat.url_instalador, texto="⬇ Instalador surtia_conector.exe (Windows)"))
-    secs.append(dict(titulo="Instalar el conector en el servidor de Profit Plus", abierto=True, enlaces=enlaces,
-                     nota="1) En SQL Server ejecute crear_usuario_lectura.sql (usuario que solo puede LEER). 2) Copie surtia_conector.exe y surtia_conector.ini en "
-                          "C:\\Surtia. 3) Complete la sección [sqlserver] del .ini. 4) Ejecute «surtia_conector --probar». 5) «surtia_conector --instalar-tarea» "
-                          f"(arranca con Windows y lee cada {plat.intervalo_min} minutos). Detalles en LEAME.md."))
-    secs.append(dict(titulo="Renovar la clave del conector", nota="Úsela si cree que surtia_conector.ini se filtró. El conector deja de funcionar hasta que reemplace el archivo.",
-                     form=dict(action=request.path, boton="Renovar clave", boton_clase="sec", confirmar="¿Renovar la clave? El conector actual dejará de sincronizar.", campos=[oculto("rotar")])))
+    estado = "Pausado" if not c.activo else ("Conectado" if c.ultima_sync else "En preparación")      # los errores los atiende el equipo de Surtia
+    secs = [dict(kpis=[("Sistema", sis["nombre"] if c.sistema not in ("archivo", "api") else nombre.capitalize(), "Lo administra Surtia", "base", "azul"),
+                       ("Estado", estado, "Solo lectura"),
+                       ("Actualizado", atraso(c.ultima_sync, intervalo) if sis["modo"] in ("agente", "nube") else hora(c.ultima_sync),
+                        f"Cada {intervalo} min" if sis["modo"] in ("agente", "nube") else "Al cargar el catálogo"),
+                       ("Artículos", c.n_articulos, f"{cuenta(ProfitArticulo.existencia > 0)} con existencia", "paquete"),
+                       ("Clientes", c.n_clientes, "Reconocidos al escribir", "usuarios")]),
+            dict(titulo="¿Quién configura esto?", nota=(
+                f"La conexión con {nombre} la instala y la mantiene el equipo de Surtia: usted no tiene que hacer nada. "
+                f"Surtia solo LEE {nombre}; nunca escribe ni modifica nada en él. Si quiere cambiar los almacenes, la lista de precios "
+                "o qué productos ofrece el bot, o si ve un precio que no corresponde, escríbanos y lo ajustamos."))]
     arts = db.session.execute(select(ProfitArticulo).where(ProfitArticulo.empresa_id == eid).order_by(ProfitArticulo.codigo).limit(3000)).scalars().all()
-    if arts:
-        secs.append(dict(titulo="Catálogo recibido de Profit Plus", tabla=dict(cols=["Código", "Descripción", "Precio", "Existencia", "Por almacén", "IVA"], num=[2, 3], filas=[
-            dict(cells=[a.codigo, a.nombre, f"{a.moneda} {a.precio:,.2f}", f"{a.existencia.normalize():f}",
-                        " · ".join(f"{k}: {Decimal(v).normalize():f}" for k, v in (a.por_almacen or {}).items()), a.alicuota]) for a in arts])))
-    sincs = db.session.execute(select(ProfitSincronizacion).where(ProfitSincronizacion.empresa_id == eid).order_by(ProfitSincronizacion.id.desc()).limit(15)).scalars()
-    secs.append(dict(titulo="Sincronizaciones recientes", tabla=dict(cols=["Fecha", "Resultado", "Artículos", "Clientes", "Duración", "Detalle"], filas=[
-        dict(cells=[hora(s.ts), s.resultado, s.articulos, s.clientes, f"{s.duracion_ms} ms" if s.duracion_ms is not None else "—", s.detalle or ""]) for s in sincs])))
-    return pagina("Profit Plus", secs)
-
-
-@bp.route("/profit/descargar/<archivo>")
-@requiere("Administrador")
-def profit_descarga(archivo):
-    eid = eid_actual()
-    c = SV.profit_conexion(eid)
-    if c is None: abort(404)
-    if archivo == "configuracion":
-        registrar("PROFIT_INI_DESCARGADO", ""); db.session.commit()
-        return Response(SV.conector_ini(c), mimetype="text/plain; charset=utf-8",
-                        headers={"Content-Disposition": "attachment; filename=surtia_conector.ini", "Cache-Control": "no-store"})
-    if archivo not in DESCARGAS: abort(404)
-    nombre, tipo = DESCARGAS[archivo]
-    return Response((CARPETA_CONECTOR / nombre).read_bytes(), mimetype=tipo + "; charset=utf-8", headers={"Content-Disposition": f"attachment; filename={nombre}"})
+    secs.append(dict(titulo="Productos que ofrece el bot", tabla=dict(cols=["Código", "Descripción", "Precio", "Existencia", "Por almacén", "IVA"], num=[2, 3], filas=[
+        dict(cells=[a.codigo, a.nombre, f"{a.moneda} {a.precio:,.2f}", f"{a.existencia.normalize():f}",
+                    " · ".join(f"{k}: {Decimal(v).normalize():f}" for k, v in (a.por_almacen or {}).items()) or "—", a.alicuota]) for a in arts])))
+    return pagina("Catálogo", secs, subtitulo=f"Productos, precios y existencias de {nombre}, tal como los ve el bot")
 
 
 # ====================================================================== pedidos
@@ -257,7 +198,7 @@ def pedidos():
             if F.get("avisar") == "1" and p.telefono:
                 frase = {"Confirmado": f"✅ ¡Buenas noticias! Su pedido N° {p.numero} ya está *confirmado* y lo estamos preparando.",
                          "Despachado": f"🚚 ¡Su pedido N° {p.numero} va en camino! Ya fue *despachado*.",
-                         "Facturado en Profit": f"🧾 Listo: su pedido N° {p.numero} ya está *facturado*. ¡Gracias por su compra!",
+                         "Facturado": f"🧾 Listo: su pedido N° {p.numero} ya está *facturado*. ¡Gracias por su compra!",
                          "Rechazado": f"Lamentamos informarle que no podemos atender su pedido N° {p.numero} en este momento. Si quiere, escríbanos y le ayudamos a buscar alternativas.",
                          }.get(p.estado, f"📦 Su pedido N° {p.numero} está *{p.estado.lower()}*.")
                 texto = frase + (f"\n\n{F['mensaje'].strip()[:500]}" if (F.get("mensaje") or "").strip() else "")
@@ -269,19 +210,19 @@ def pedidos():
     if filtro in ESTADOS_PEDIDO: q = q.where(Pedido.estado == filtro)
     ps = db.session.execute(q.order_by(Pedido.id.desc()).limit(3000)).scalars().all()
     cuenta = lambda e: db.session.execute(select(func.count()).select_from(Pedido).where(Pedido.empresa_id == eid, Pedido.estado == e)).scalar() or 0
-    sub_ = {"Nuevo": "Por revisar", "Confirmado": "Listos para despachar", "Despachado": "Falta facturar en Profit", "Facturado en Profit": "Cerrados"}
-    secs = [dict(kpis=[(e, cuenta(e), sub_[e]) for e in ("Nuevo", "Confirmado", "Despachado", "Facturado en Profit")]),
-            dict(titulo="Pedidos por WhatsApp", nota="Cargue cada pedido en Profit Plus con el código de cliente y emita allí la factura; luego márquelo «Facturado en Profit».",
-                 tabla=dict(cols=["N°", "Fecha", "Cliente", "Cód. Profit", "Productos", "Total ref. Bs", "Estado", "Origen"], num=[5], filas=[
+    sub_ = {"Nuevo": "Por revisar", "Confirmado": "Listos para despachar", "Despachado": "Falta facturar", "Facturado": "Cerrados"}
+    secs = [dict(kpis=[(e, cuenta(e), sub_[e]) for e in ("Nuevo", "Confirmado", "Despachado", "Facturado")]),
+            dict(titulo="Pedidos por WhatsApp", nota=f"Cargue cada pedido en {SV.nombre_sistema(eid)} con el código de cliente y emita allí la factura; luego márquelo «Facturado».",
+                 tabla=dict(cols=["N°", "Fecha", "Cliente", "Cód. cliente", "Productos", "Total ref. Bs", "Estado", "Origen"], num=[5], filas=[
                      dict(url=url_for("web.pedido", pid=p.id), cells=[p.numero, hora(p.creado_en), p.nombre or ("+" + (p.telefono or "")), p.codigo_cliente or "—",
                           "; ".join(f"{l['codigo']} ×{l['cantidad']}" for l in p.lineas)[:120] or "—", SV.bs(p.total), p.estado,
                           "PDF" if p.origen == "whatsapp_pdf" else "Chat"]) for p in ps]))]
     if ps:
         secs.append(dict(titulo="Atender pedido", form=dict(action=request.path, boton="Actualizar", campos=[
-            campo("pid", "Pedido", "select", opciones=[(p.id, f"N° {p.numero} · {p.nombre or p.telefono}") for p in ps if p.estado not in ("Facturado en Profit", "Rechazado")][:100]),
+            campo("pid", "Pedido", "select", opciones=[(p.id, f"N° {p.numero} · {p.nombre or p.telefono}") for p in ps if p.estado not in ("Facturado", "Rechazado")][:100]),
             campo("estado", "Nuevo estado", "select", opciones=[(e, e) for e in ESTADOS_PEDIDO]),
             campo("avisar", "¿Avisar por WhatsApp?", "select", opciones=[("1", "Sí"), ("0", "No")]), campo("mensaje", "Mensaje adicional", req=False)])))
-    return pagina("Pedidos", secs, subtitulo="Lo que sus clientes pidieron por WhatsApp, listo para cargar en Profit Plus")
+    return pagina("Pedidos", secs, subtitulo=f"Lo que sus clientes pidieron por WhatsApp, listo para cargar en {SV.nombre_sistema(eid)}")
 
 
 @bp.route("/pedidos/<int:pid>")
@@ -295,7 +236,7 @@ def pedido(pid):
 @bp.route("/pedidos/exportar")
 @requiere(*CLIENTE)
 def pedidos_exportar():
-    """CSV de los pedidos abiertos, una línea por producto, para cargarlos en Profit Plus."""
+    """CSV de los pedidos abiertos, una línea por producto, para cargarlos en el sistema de la empresa."""
     import csv
     import io
     eid = eid_actual()
@@ -308,7 +249,7 @@ def pedidos_exportar():
         for l in p.lineas:
             fila(p.numero, p.creado_en.date().isoformat(), p.codigo_cliente or "", p.nombre or "", p.rif or "", l["codigo"], l["descripcion"],
                  l["cantidad"], l["precio"], p.estado)
-    return Response("\ufeff" + out.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=pedidos_para_profit.csv"})
+    return Response("\ufeff" + out.getvalue(), mimetype="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=pedidos_surtia.csv"})
 
 
 # ====================================================================== conversaciones
@@ -317,7 +258,7 @@ def pedidos_exportar():
 def conversaciones():
     eid = eid_actual()
     cs = db.session.execute(select(Contacto).where(Contacto.empresa_id == eid).order_by(Contacto.ultimo_mensaje.desc().nullslast()).limit(3000)).scalars().all()
-    return pagina("Conversaciones", [dict(tabla=dict(cols=["Contacto", "Teléfono", "Tipo", "Cód. Profit", "Último mensaje", "Atención"], filas=[
+    return pagina("Conversaciones", [dict(tabla=dict(cols=["Contacto", "Teléfono", "Tipo", "Cód. cliente", "Último mensaje", "Atención"], filas=[
         dict(url=url_for("web.conversacion", cid=c.id), cells=[c.nombre or "—", "+" + c.telefono, c.tipo.capitalize(), c.codigo_profit or "—",
                                                                   hora(c.ultimo_mensaje), "🙋 Pidió una persona" if c.atencion else ""]) for c in cs]))])
 
@@ -344,7 +285,7 @@ def conversacion(cid):
         intentar(hacer, {"responder": "Mensaje enviado", "ficha": "Contacto actualizado", "atendido": "Marcado como atendido"}.get(a, "Hecho"))
         return redirect(request.url)
     ms = db.session.execute(select(Mensaje).where(Mensaje.empresa_id == eid, Mensaje.contacto_id == cid).order_by(Mensaje.id.desc()).limit(500)).scalars().all()
-    secs = [dict(pares=[("Teléfono", "+" + c.telefono), ("Nombre", c.nombre or "—"), ("Tipo", c.tipo.capitalize()), ("RIF", c.rif or "—"), ("Cliente en Profit", c.codigo_profit or "—")]),
+    secs = [dict(pares=[("Teléfono", "+" + c.telefono), ("Nombre", c.nombre or "—"), ("Tipo", c.tipo.capitalize()), ("RIF", c.rif or "—"), ("Código en su sistema", c.codigo_profit or "—")]),
             dict(titulo="Conversación (más reciente primero)", tabla=dict(cols=["Fecha", "De", "Mensaje", "Envío"], filas=[
                 dict(cells=[hora(m.ts), "Contacto" if m.direccion == "in" else "Empresa", m.texto[:600], "" if m.direccion == "in" else (m.resultado or "")]) for m in ms])),
             dict(titulo="Responder", abierto=True, form=dict(action=request.path, boton="Enviar", campos=[oculto("responder"), campo("texto", "Mensaje", "textarea")]))]

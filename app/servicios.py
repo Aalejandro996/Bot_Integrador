@@ -1,4 +1,5 @@
-"""Servicios del bot: pasarela de WhatsApp, catálogo de Profit Plus, conversación, pedidos, presupuestos y tasa BCV."""
+"""Servicios del bot: pasarela de WhatsApp, catálogo del sistema de la empresa (Profit Plus u otros), conversación, pedidos,
+presupuestos y tasa BCV."""
 import json
 import logging
 import secrets
@@ -12,6 +13,8 @@ from sqlalchemy import delete, func, insert, select
 from . import bot as BOT
 from . import notificaciones as N
 from . import openwa as OW
+from . import profit as PF
+from . import sistemas as SIS
 from .extensions import db
 from .models import (Contacto, Empresa, Mensaje, Parametros, Pedido, Presupuesto, ProfitArticulo, ProfitCliente, ProfitConexion,
                      ProfitPlataforma, ProfitSincronizacion, WhatsappConfig, WhatsappPasarela, ahora)
@@ -165,10 +168,11 @@ def profit_conexion(eid) -> ProfitConexion | None:
     return db.session.get(ProfitConexion, eid)
 
 
-def crear_conexion_profit(eid) -> ProfitConexion:
+def crear_conexion_profit(eid, sistema="profit") -> ProfitConexion:
     c = profit_conexion(eid)
     if c is not None: return c
-    c = ProfitConexion(empresa_id=eid, conector_id="pp_" + secrets.token_hex(10), secreto_cifrado=cifrador().cifrar(secrets.token_urlsafe(32)),
+    if sistema not in SIS.SISTEMAS: raise ValueError("Sistema desconocido")
+    c = ProfitConexion(empresa_id=eid, sistema=sistema, opciones={}, conector_id="pp_" + secrets.token_hex(10), secreto_cifrado=cifrador().cifrar(secrets.token_urlsafe(32)),
                        activo=True, almacenes=[], lista_precio="01", restar_comprometido=True, solo_con_existencia=False, disponibles={})
     db.session.add(c); db.session.flush()
     return c
@@ -179,9 +183,32 @@ def url_api_profit() -> str:
     return ((p.url_publica if p and p.url_publica else None) or current_app.config["APP_BASE_URL"]).rstrip("/")
 
 
+def nombre_sistema(eid) -> str:
+    c = profit_conexion(eid)
+    return SIS.nombre(c.sistema if c else None, c.opciones if c else None)
+
+
+def credenciales(c: ProfitConexion) -> dict:
+    if not c.credenciales_cifradas: return {}
+    try: return json.loads(cifrador().descifrar(c.credenciales_cifradas))
+    except (ValueError, TypeError): return {}
+
+
+def guardar_credenciales(c: ProfitConexion, nuevas: dict):
+    """Solo reemplaza las claves que llegaron con valor (un campo vacío conserva la clave guardada)."""
+    d = credenciales(c); d.update({k: v for k, v in nuevas.items() if v})
+    c.credenciales_cifradas = cifrador().cifrar(json.dumps(d)) if d else None
+
+
 def conector_ini(c: ProfitConexion) -> str:
-    return f"""; Conector Surtia ↔ Profit Plus (SOLO LECTURA). Generado el {hoy_ve().isoformat()}.
-; Guarde este archivo como «surtia_conector.ini» junto a surtia_conector.exe. No lo comparta: la clave identifica a su empresa.
+    consultas = SIS.consultas_ini(c.opciones or {}) if c.sistema == "sql" else ""
+    extra = f"\n[consultas]\n; Consultas a la medida del sistema del cliente (todas de solo lectura).\n{consultas}\n" if consultas else ""
+    return _ini_base(c) + extra
+
+
+def _ini_base(c: ProfitConexion) -> str:
+    return f"""; Conector Surtia ↔ {SIS.nombre(c.sistema, c.opciones) if c.sistema != 'sql' else 'sistema con SQL Server'} (SOLO LECTURA). Generado el {hoy_ve().isoformat()}.
+; Lo instala el equipo de Surtia junto a surtia_conector.exe. No lo comparta: la clave identifica a la empresa.
 
 [surtia]
 url = {url_api_profit()}
@@ -189,7 +216,7 @@ conector = {c.conector_id}
 clave = {cifrador().descifrar(c.secreto_cifrado)}
 
 [sqlserver]
-; Servidor y base de datos de Profit Plus. Use un usuario de SOLO LECTURA (vea crear_usuario_lectura.sql).
+; Servidor y base de datos del sistema. Use un usuario de SOLO LECTURA (vea crear_usuario_lectura.sql).
 servidor = localhost\\SQLEXPRESS
 base_datos = NOMBRE_DE_LA_EMPRESA_EN_PROFIT
 usuario = surtia_lectura
@@ -241,6 +268,81 @@ def error_conector(eid, c, mensaje, ip=None):
     anotar_sync(eid, "error", detalle=str(mensaje), ip=ip)
 
 
+def recibir_foto(eid, c: ProfitConexion, cruda: dict, ip=None, duracion_ms=None) -> dict:
+    """Valida y aplica una foto de cualquier sistema. Devuelve {articulos, clientes, omitidos}. Lanza PF.ErrorProfit."""
+    plat = profit_plataforma()
+    foto = PF.validar_foto(cruda, plat.max_articulos if plat else 20000, plat.max_clientes if plat else 50000)
+    omitidos = max(len(cruda.get("articulos") or []) - len(foto["articulos"]), 0)
+    aplicar_foto(eid, c, foto, ip=ip, duracion_ms=duracion_ms)
+    return dict(articulos=c.n_articulos, clientes=c.n_clientes, omitidos=omitidos)
+
+
+def sincronizar_fuente(eid, transporte=None) -> dict:
+    """Lee AHORA un sistema en la nube (Odoo, WooCommerce, hoja en línea) y reemplaza el catálogo. Errores → ValueError legible."""
+    import time
+    c = profit_conexion(eid)
+    if c is None or c.sistema not in SIS.LECTORES: raise ValueError("Esta empresa no usa un sistema en la nube")
+    plat = profit_plataforma()
+    c.ultimo_intento, t0 = ahora(), time.monotonic()
+    try:
+        cruda = SIS.LECTORES[c.sistema](c.opciones or {}, credenciales(c), transporte or current_app.extensions.get("fuente_transporte") or SIS.transporte_http,
+                                        max_articulos=plat.max_articulos if plat else 20000, max_clientes=plat.max_clientes if plat else 50000)
+        return recibir_foto(eid, c, cruda, duracion_ms=int((time.monotonic() - t0) * 1000))
+    except (SIS.ErrorFuente, PF.ErrorProfit) as e:
+        error_conector(eid, c, str(e)); db.session.commit()
+        raise ValueError(f"No se pudo leer {SIS.SISTEMAS[c.sistema]['nombre']}: {e}") from e
+
+
+def importar_tabla(eid, contenido: bytes, nombre_archivo: str, solo_vista=False) -> dict:
+    """Excel/CSV subido por el Maestro → vista previa o catálogo nuevo (reemplaza el anterior completo)."""
+    c = profit_conexion(eid)
+    if c is None: raise ValueError("La empresa no tiene sistema registrado")
+    try:
+        enc, filas = SIS.leer_tabla(contenido, nombre_archivo)
+        cruda = SIS.foto_de_tabla(enc, filas, c.opciones or {})
+        if solo_vista:
+            foto = PF.validar_foto(cruda, 10**7, 10**7)
+            return dict(encabezados=enc, articulos=foto["articulos"], omitidos=len(cruda["articulos"]) - len(foto["articulos"]), filas=len(filas))
+        return recibir_foto(eid, c, cruda)
+    except (SIS.ErrorFuente, PF.ErrorProfit) as e:
+        raise ValueError(str(e)) from e
+
+
+def pendientes_nube() -> list[int]:
+    """Empresas activas con sistema en la nube a las que ya les toca leer (según el intervalo de la plataforma)."""
+    plat = profit_plataforma()
+    if plat is None or not plat.activa: return []
+    limite = ahora() - timedelta(minutes=plat.intervalo_min)
+    q = (select(ProfitConexion.empresa_id).join(Empresa, Empresa.id == ProfitConexion.empresa_id)
+         .where(ProfitConexion.sistema.in_(tuple(SIS.LECTORES)), ProfitConexion.activo.is_(True), Empresa.activa.is_(True),
+                (ProfitConexion.ultimo_intento.is_(None)) | (ProfitConexion.ultimo_intento < limite)))
+    return list(db.session.execute(q).scalars())
+
+
+def programador(app, cada_s=60):
+    """Hilo que lee los sistemas en la nube. Con varios procesos, un candado de PostgreSQL deja trabajar a uno solo."""
+    import threading
+    import time
+
+    def bucle():
+        while True:
+            time.sleep(cada_s)
+            with app.app_context():
+                try:
+                    if db.engine.dialect.name == "postgresql" and not db.session.execute(db.text("SELECT pg_try_advisory_xact_lock(472019)")).scalar():
+                        db.session.rollback(); continue
+                    for eid in pendientes_nube():
+                        try: sincronizar_fuente(eid); db.session.commit()
+                        except ValueError as e: db.session.rollback(); log.warning("Lectura programada empresa %s: %s", eid, e)
+                    db.session.commit()
+                except Exception:  # noqa: BLE001 — el hilo nunca debe morir
+                    db.session.rollback(); log.exception("Programador de lecturas")
+                finally:
+                    db.session.remove()
+
+    threading.Thread(target=bucle, name="surtia-lecturas", daemon=True).start()
+
+
 def precio_bs(a: ProfitArticulo) -> Decimal | None:
     if a.moneda == "VES": return Decimal(a.precio)
     t = tasa(a.moneda)
@@ -248,7 +350,7 @@ def precio_bs(a: ProfitArticulo) -> Decimal | None:
 
 
 def catalogo(eid, todos=False) -> dict:
-    """{codigo: (nombre, precio_bs, existencia)} desde la foto de Profit. Sin tasa del día, los precios en divisas no se
+    """{codigo: (nombre, precio_bs, existencia)} desde la foto del sistema de la empresa. Sin tasa del día, los precios en divisas no se
     ofrecen. `todos` (lectura de PDF): incluye artículos sin precio o sin existencia."""
     c = profit_conexion(eid)
     if c is None or not c.activo: return {}

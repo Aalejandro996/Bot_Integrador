@@ -1,4 +1,4 @@
-"""Surtia™ · Profit Plus — bot de WhatsApp conectado (solo lectura) a Profit Plus. Gigadevs Corp."""
+"""Surtia™ — bot de WhatsApp conectado (solo lectura) al sistema administrativo de cada empresa (Profit Plus y otros). Gigadevs Corp."""
 import logging
 import secrets
 

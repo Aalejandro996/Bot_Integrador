@@ -1,4 +1,4 @@
-"""Consola Maestro (Gigadevs): monitoreo del bot, API de Profit, empresas, pasarela de WhatsApp y parámetros.
+"""Consola Maestro (Gigadevs): monitoreo del bot, API de catálogo, empresas y su sistema, pasarela de WhatsApp y parámetros.
 El Maestro ve conteos y estados técnicos; no ve conversaciones, catálogos ni clientes de las empresas."""
 import re
 from datetime import timedelta
@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from .. import notificaciones as N
 from .. import openwa as OW
 from .. import servicios as SV
+from .. import sistemas as SIS
 from ..extensions import db
 from ..models import Bitacora, Contacto, Empresa, Mensaje, Pedido, ProfitConexion, ProfitPlataforma, Usuario, WhatsappConfig, WhatsappPasarela, ahora
 from ..seguridad import nuevo_enlace_activacion, registrar, requiere
@@ -53,14 +54,14 @@ def maestro():
             p.activa, p.url_publica, p.url_instalador = F.get("activa", "1") == "1", url or None, inst or None
             p.intervalo_min, p.max_articulos, p.max_clientes, p.actualizado_por = intervalo, arts, clis, g.usuario.username
             registrar("PROFIT_API", f"activa={p.activa} intervalo={intervalo}"); db.session.commit()
-        intentar(guardar, "API de Profit Plus guardada")
+        intentar(guardar, "API de catálogo guardada")
         return redirect(request.url)
     intervalo = p.intervalo_min if p else 15
     filas = _monitor()
     tarde = lambda f: f["p"] and f["p"].activo and (f["p"].ultima_sync is None or ahora() - f["p"].ultima_sync > timedelta(minutes=2 * intervalo + 5))
     alertas = [dict(cells=[f["e"].razon_social, "WhatsApp " + (OW.ESTADOS.get(f["w"].sesion_estado, "sin vincular") if f["w"] else "sin vincular").lower()]) for f in filas
                if f["e"].activa and (f["w"] is None or f["w"].sesion_estado != "ready")]
-    alertas += [dict(cells=[f["e"].razon_social, "Profit: " + ("sin foto aún" if f["p"].ultima_sync is None else "foto " + atraso(f["p"].ultima_sync, intervalo))
+    alertas += [dict(cells=[f["e"].razon_social, "Catálogo: " + ("sin foto aún" if f["p"].ultima_sync is None else "foto " + atraso(f["p"].ultima_sync, intervalo))
                             + (f" · {f['p'].ultimo_error[:150]}" if f["p"].ultimo_estado == "error" and f["p"].ultimo_error else "")]) for f in filas if tarde(f)]
     alertas += [dict(cells=[f["e"].razon_social, f"{f['fallidos']} respuesta(s) del bot sin enviar en 24 h"]) for f in filas if f["fallidos"]]
     ow_txt = "Sin configurar"
@@ -68,28 +69,43 @@ def maestro():
         try: SV.pasarela().salud(); ow_txt = "En línea"
         except ErrorWhatsapp: ow_txt = "Sin respuesta"
     return pagina("Monitoreo del bot", [
-        dict(kpis=[("Pasarela WhatsApp", ow_txt, "OpenWA propia"), ("API Profit", ("Activa" if p.activa else "Pausada") if p else "Sin configurar",
+        dict(kpis=[("Pasarela WhatsApp", ow_txt, "OpenWA propia"), ("API de catálogo", ("Activa" if p.activa else "Pausada") if p else "Sin configurar",
                     f"Cada {intervalo} min"), ("Empresas", len(filas), f"{sum(1 for f in filas if f['e'].activa)} activas"),
                    ("WhatsApp conectados", sum(1 for f in filas if f["w"] and f["w"].sesion_estado == "ready"), f"de {len(filas)} empresas"),
                    ("Mensajes 24 h", sum(f["recibidos"] + f["enviados"] for f in filas), f"{sum(f['fallidos'] for f in filas)} fallidos"),
                    ("Alertas", len(alertas), "Todo en orden" if not alertas else "Requieren atención")]),
         dict(titulo="Alertas", tabla=dict(cols=["Empresa", "Qué pasa"], filas=alertas or [dict(cells=["—", "Todo en orden ✅"])])),
         dict(titulo="Monitoreo por empresa", tabla=dict(ancha=True, cols=["Empresa", "WhatsApp", "Bot", "Recibidos 24 h", "Enviados 24 h", "Fallidos 24 h", "Último mensaje",
-                                                                         "Pedidos 24 h", "Piden persona", "Profit: última foto", "Artículos", "Conector"], num=[3, 4, 5, 7, 8, 10], filas=[
+                                                                         "Pedidos 24 h", "Piden persona", "Sistema", "Último catálogo", "Artículos", "Conector"], num=[3, 4, 5, 7, 8, 11], filas=[
             dict(cells=[f["e"].razon_social + ("" if f["e"].activa else " (suspendida)"), OW.ESTADOS.get(f["w"].sesion_estado, "Sin vincular") if f["w"] else "—",
                         ("Activo" if f["w"].activo else "Pausado") if f["w"] else "—", f["recibidos"], f["enviados"], f["fallidos"], hora(f["ultimo"]), f["pedidos"], f["atencion"],
+                        SIS.SISTEMAS.get(f["p"].sistema, {}).get("nombre", "—") if f["p"] else "Sin registrar",
                         ((atraso(f["p"].ultima_sync, intervalo) if f["p"].activo else "Pausado") + (" · error" if f["p"].ultimo_estado == "error" else "")) if f["p"] else "—",
                         f["p"].n_articulos if f["p"] else "—", f"{f['p'].agente_equipo or '—'} · {f['p'].agente_version or '—'}" if f["p"] else "—"]) for f in filas])),
-        dict(titulo="API del conector de Profit Plus", abierto=True,
-             nota="El conector corre en el servidor de Profit de cada cliente y llama a esta URL por HTTPS (solo salida; el cliente no abre puertos). "
-                  "Cada empresa tiene su ID y su clave, que descarga en surtia_conector.ini. Pausar la API detiene la sincronización: los bots siguen con la última foto.",
+        dict(titulo="API de catálogo (conectores e integraciones)", abierto=True,
+             nota="Los conectores (Profit Plus u otro SQL Server) y las integraciones propias llaman a esta URL por HTTPS (solo salida; el cliente no abre puertos). "
+                  "Los sistemas en la nube los lee Surtia con el mismo intervalo. El ID y la clave de cada empresa se descargan en Empresas → Sistema. "
+                  "Pausar la API detiene todas las lecturas: los bots siguen con el último catálogo.",
              form=dict(action=request.path, boton="Guardar", campos=[oculto("guardar"),
                        campo("activa", "API", "select", opciones=[("1", "Activa"), ("0", "Pausada")], valor="1" if (p is None or p.activa) else "0"),
                        campo("url_publica", "URL pública que usan los conectores", req=False, valor=p.url_publica if p else None, ph=current_app.config["APP_BASE_URL"]),
-                       campo("intervalo_min", "Cada cuántos minutos sincronizan", "number", valor=intervalo),
+                       campo("intervalo_min", "Cada cuántos minutos se lee el catálogo", "number", valor=intervalo),
                        campo("max_articulos", "Máximo de artículos por empresa", "number", valor=p.max_articulos if p else 20000),
                        campo("max_clientes", "Máximo de clientes por empresa", "number", valor=p.max_clientes if p else 50000),
                        campo("url_instalador", "Descarga del instalador surtia_conector.exe (https://…)", req=False, valor=p.url_instalador if p else None)]))])
+
+
+def _sistema_txt(eid):
+    c = SV.profit_conexion(eid)
+    return SIS.SISTEMAS.get(c.sistema, {}).get("nombre", "—") if c else "Sin registrar"
+
+
+def _catalogo_txt(eid):
+    c = SV.profit_conexion(eid)
+    if c is None: return "—"
+    if not c.activo: return "Pausado"
+    if c.ultimo_estado == "error": return "error"
+    return f"{c.n_articulos} artículo{'' if c.n_articulos == 1 else 's'}" if c.ultima_sync else "Sin catálogo aún"
 
 
 @bp.route("/maestro/empresas", methods=["GET", "POST"])
@@ -107,14 +123,18 @@ def maestro_empresas():
                 usuario = (F.get("username") or "").strip().lower()
                 if not re.fullmatch(r"[a-z0-9._-]{3,40}", usuario): raise ValueError("Usuario del administrador: 3 a 40 letras, números, punto, guion")
                 if db.session.query(Usuario).filter(func.lower(Usuario.username) == usuario).first(): raise ValueError("Ese usuario ya existe")
+                sistema = F.get("sistema") or "profit"
+                if sistema not in SIS.SISTEMAS: raise ValueError("Sistema desconocido")
                 e = Empresa(razon_social=F["razon_social"].strip()[:200], rif=rif, direccion=(F.get("direccion") or "").strip()[:300] or None,
                             telefono=(F.get("telefono") or "").strip()[:40] or None, correo=(F.get("correo") or "").strip()[:120] or None)
                 db.session.add(e); db.session.flush()
                 u = Usuario(username=usuario, email=(F.get("email") or "").strip()[:254] or None, rol="Administrador", empresa_id=e.id)
                 db.session.add(u); db.session.flush()
+                SV.crear_conexion_profit(e.id, sistema)
                 enlace = nuevo_enlace_activacion(u)
-                registrar("EMPRESA_CREADA", f"{e.razon_social} {e.rif} admin={u.username}", empresa_id=e.id); db.session.commit()
-                flash("Empresa creada. " + N.enlace_activacion(u, enlace, empresa=e)[1])
+                registrar("EMPRESA_CREADA", f"{e.razon_social} {e.rif} admin={u.username} sistema={sistema}", empresa_id=e.id); db.session.commit()
+                flash("Empresa creada. " + N.enlace_activacion(u, enlace, empresa=e)[1] + f" Siguiente paso: configure su sistema ({SIS.SISTEMAS[sistema]['nombre']}).")
+                return e.id
             elif a in ("suspender", "reactivar", "reenlace"):
                 e = db.session.get(Empresa, int(F["eid"]))
                 if e is None: raise ValueError("Empresa inexistente")
@@ -127,17 +147,24 @@ def maestro_empresas():
                 registrar("EMPRESA_" + a.upper(), e.razon_social, empresa_id=e.id); db.session.commit()
                 if a == "reenlace": flash(N.enlace_activacion(u, enlace, "reenlace", empresa=e)[1] + " Reemplaza su clave y su MFA.")
             else: raise ValueError("Acción inválida")
-        intentar(hacer, "Listo")
+        nuevo = []
+        intentar(lambda: nuevo.append(hacer()), "Listo")
+        if nuevo and nuevo[0]: return redirect(url_for("web.maestro_sistema", eid=nuevo[0]))
         return redirect(request.url)
     es = db.session.execute(select(Empresa).order_by(Empresa.razon_social)).scalars().all()
+    from .conexiones import OPCIONES_SISTEMA
     n_us = lambda eid: db.session.execute(select(func.count()).select_from(Usuario).where(Usuario.empresa_id == eid)).scalar()
     return pagina("Empresas", [
-        dict(tabla=dict(cols=["Empresa", "RIF", "Usuarios", "Estado", "Alta"], filas=[
-            dict(cells=[e.razon_social, e.rif, n_us(e.id), "Activa" if e.activa else "Suspendida", hora(e.creada)]) for e in es])),
+        dict(nota="Abra una empresa para registrar o cambiar su sistema administrativo y configurarlo. La empresa no configura conexiones.",
+             tabla=dict(cols=["Empresa", "RIF", "Sistema", "Catálogo", "Usuarios", "Estado", "Alta"], num=[4], filas=[
+            dict(url=url_for("web.maestro_sistema", eid=e.id), cells=[e.razon_social, e.rif, _sistema_txt(e.id), _catalogo_txt(e.id), n_us(e.id),
+                                                                       "Activa" if e.activa else "Suspendida", hora(e.creada)]) for e in es])),
         dict(titulo="Nueva empresa", nota="Se crea la empresa y su administrador; recibirá un enlace de un solo uso para crear su contraseña y su verificación en dos pasos.",
              form=dict(action=request.path, boton="Crear empresa", campos=[oculto("crear"), campo("razon_social", "Razón social"), campo("rif", "RIF", ph="J-12345678-9"),
                        campo("direccion", "Dirección", req=False), campo("telefono", "Teléfono", req=False), campo("correo", "Correo de la empresa", "email", req=False),
-                       campo("username", "Usuario del administrador"), campo("email", "Correo del administrador", "email", req=False)])),
+                       campo("username", "Usuario del administrador"), campo("email", "Correo del administrador", "email", req=False),
+                       campo("sistema", "Sistema administrativo a conectar", "select", opciones=OPCIONES_SISTEMA, valor="profit",
+                             ayuda="Después de crearla verá las opciones de ese sistema")])),
         dict(titulo="Suspender, reactivar o nuevo enlace del administrador", form=dict(action=request.path, boton="Aplicar", campos=[
             campo("eid", "Empresa", "select", opciones=[(e.id, e.razon_social) for e in es]),
             campo("accion", "Acción", "select", opciones=[("suspender", "Suspender (nadie entra, el bot no atiende)"), ("reactivar", "Reactivar"),
@@ -216,7 +243,7 @@ def maestro_parametros():
     return pagina("Parámetros", [
         dict(pares=[("Tasa BCV USD", f"{pr.tasa_usd:,.4f}" if pr.tasa_usd else "—"), ("Tasa BCV EUR", f"{pr.tasa_eur:,.4f}" if pr.tasa_eur else "—"),
                     ("Vigencia", str(pr.tasa_fecha or "—")), ("Fuente", pr.tasa_fuente or "—")]),
-        dict(titulo="Tasa BCV", nota="Se toma sola de DolarAPI (BCV) una vez al día. Una tasa cargada a mano tiene prioridad ese día. Los precios de Profit en divisas se muestran en Bs con ella.",
+        dict(titulo="Tasa BCV", nota="Se toma sola de DolarAPI (BCV) una vez al día. Una tasa cargada a mano tiene prioridad ese día. Los precios en divisas se muestran en Bs con ella.",
              form=dict(action=request.path, boton="Guardar tasa manual", campos=[oculto("tasa"), campo("tasa_usd", "Bs por USD"), campo("tasa_eur", "Bs por EUR", req=False)])),
         dict(titulo="Actualizar desde el BCV ahora", form=dict(action=request.path, boton="Consultar", boton_clase="sec", campos=[oculto("auto")])),
         dict(titulo="Alícuotas de IVA", nota="Para presupuestos y órdenes de venta. Adicional = la de lujo, que se suma a la general.",

@@ -1,6 +1,11 @@
 # Surtia™ más allá de Profit Plus: estudio de factibilidad
 
-> Estado: **exploración** (no implementado). Fecha: 5 nov 2026. Sirve de base técnica para el desarrollo y de fuente
+> **Actualización 5 nov 2026 — fase 1 implementada (beta):** el Maestro registra el sistema de cada empresa y lo configura
+> (Profit Plus, otro SQL Server, Odoo, WooCommerce, hoja en línea, Excel/CSV y API). La empresa no configura conexiones. Ver el README,
+> sección «Sistemas de cada empresa». Pendiente: validar Odoo y WooCommerce con una instancia real, variantes de WooCommerce,
+> `ConfigEmpresa` (tono, horario) y la API oficial de WhatsApp.
+>
+> Estado original: **exploración**. Fecha: 5 nov 2026. Sirve de base técnica para el desarrollo y de fuente
 > veraz para la sesión que preparará la promoción (redes sociales, posts). Lo marcado *«por validar»* no debe
 > anunciarse hasta comprobarlo con un cliente real.
 
@@ -110,7 +115,7 @@ para facturar. Es una marca de Gigadevs Corp (Venezuela).
 - Conectado hoy a **Profit Plus**, en **solo lectura** (no modifica nada del sistema).
 - Seguridad: verificación en dos pasos obligatoria, datos cifrados, sin abrir puertos en la empresa.
 
-**Lo que NO se debe prometer todavía:** integración con otros sistemas (está en estudio), pagos dentro del chat,
+**Lo que NO se debe prometer todavía:** integración con otros sistemas (ya está en beta, pero sin validar con un cliente real), pagos dentro del chat,
 facturación fiscal (se sigue emitiendo en el sistema de la empresa), «WhatsApp oficial» (hoy no lo es).
 
 **Público:** distribuidoras de consumo masivo, ferreterías, farmacias, repuestos y mayoristas con catálogo grande y

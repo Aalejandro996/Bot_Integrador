@@ -13,14 +13,14 @@ def icono(nombre: str, clase: str = "") -> Markup:
 def _bueno(v) -> bool | None:
     t = str(v).lower()
     if any(x in t for x in ("desconect", "falló", "error", "sin config", "suspend", "requiere", "sin respuesta", "atrasado")): return False
-    if any(x in t for x in ("conectado", "activa", "activo", "hace un momento", "en orden", "hace ", "en línea")): return True
+    if any(x in t for x in ("conectado", "activa", "activo", "probado", "hace un momento", "en orden", "hace ", "en línea")): return True
     return None
 
 
 def kpi_estilo(etiqueta, valor, n=0) -> tuple[str, str]:
     """(ícono, tono) de una tarjeta según lo que muestra; el tono del estado manda (verde bien, rojo mal, ámbar pendiente)."""
     e = str(etiqueta).lower()
-    reglas = [("facturado", "recibo", "menta"), ("whatsapp", "whatsapp", None), ("pasarela", "antena", None), ("sesion", "whatsapp", "violeta"), ("profit", "base", "azul"),
+    reglas = [("facturado", "recibo", "menta"), ("whatsapp", "whatsapp", None), ("pasarela", "antena", None), ("sesion", "whatsapp", "violeta"), ("profit", "base", "azul"), ("catálogo", "reloj", "azul"), ("sistema", "base", "azul"), ("lectura", "sube", None), ("actualizado", "reloj", "azul"),
               ("conector", "servidor", None), ("foto", "reloj", "azul"), ("api", "servidor", None), ("persona", "persona", "ambar"),
               ("atenci", "persona", "ambar"), ("mensaje", "chat", "violeta"), ("pedidos nuevos", "rayo", "ambar"), ("nuevo", "rayo", "ambar"),
               ("confirmado", "ok", "azul"), ("despachado", "camion", "violeta"), ("facturado", "recibo", "menta"), ("pedido", "paquete", "menta"),

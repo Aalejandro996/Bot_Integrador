@@ -2,7 +2,7 @@
 
 Lee de SQL Server artículos, existencias por almacén, precios de venta y clientes con un usuario que solo tiene SELECT,
 y envía la «foto» a Surtia por HTTPS (solo conexiones de SALIDA: no hay que abrir puertos). Nunca escribe en Profit Plus.
-Qué almacenes y qué lista de precios se toman lo decide la empresa en Surtia (Clientes → Profit Plus); este programa
+Qué almacenes y qué lista de precios se toman lo configura el equipo de Surtia (Empresas → Sistema); este programa
 lo recibe en cada conexión. La conexión a SQL Server vive SOLO en surtia_conector.ini, en este equipo.
 
 Uso:
@@ -124,7 +124,7 @@ def toca_sincronizar(estado: dict, ahora: float) -> bool:
 
 # ====================================================================== configuración y estado local
 def leer_ini(ruta=INI) -> configparser.ConfigParser:
-    if not ruta.exists(): raise ErrorConector(f"No existe {ruta}. Descárguelo en Surtia → Clientes → Profit Plus y cópielo junto a este programa.")
+    if not ruta.exists(): raise ErrorConector(f"No existe {ruta}. Pídalo al equipo de Surtia y cópielo junto a este programa.")
     cfg = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=(";",))
     cfg.read(ruta, encoding="utf-8-sig")
     for sec, claves in (("surtia", ("url", "conector", "clave")), ("sqlserver", ("servidor", "base_datos"))):

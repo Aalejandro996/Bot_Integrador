@@ -4,12 +4,13 @@
 {% if c.t == 'hidden' %}<input type="hidden" name="{{ c.n }}" value="{{ c.valor if c.valor is not none else '' }}">
 {% elif c.t == 'checks' %}<fieldset class="campo ancho"><legend>{{ c.l }}</legend><div class="checks">{% for o in c.opciones %}
   <label class="check"><input type="checkbox" name="{{ c.n }}" value="{{ o[0] }}" {{ 'checked' if c.valor and o[0] in c.valor }}><span>{{ o[1] }}</span></label>{% endfor %}</div></fieldset>
-{% else %}<label class="campo{{ ' ancho' if c.t == 'textarea' }}"><span class="etq">{{ c.l }}{% if not c.req %} <i>(opcional)</i>{% endif %}</span>
+{% else %}<label class="campo{{ ' ancho' if c.t == 'textarea' }}"><span class="etq">{{ c.l }}{% if not c.req %} <i>(opcional)</i>{% endif %}</span>{% if c.ayuda %}<small class="ayuda">{{ c.ayuda }}</small>{% endif %}
 {% if c.t == 'select' %}<select name="{{ c.n }}" {{ 'required' if c.req }}>{% for o in c.opciones %}{{ opcion(o, c.valor) }}{% endfor %}</select>
 {% elif c.t == 'textarea' %}<textarea name="{{ c.n }}" rows="{{ c.filas or 3 }}" maxlength="{{ c.max or 4000 }}" {{ 'required' if c.req }} {% if c.ph %}placeholder="{{ c.ph }}"{% endif %}>{{ c.valor if c.valor is not none else '' }}</textarea>
+{% elif c.t == 'file' %}<input name="{{ c.n }}" type="file" {{ 'required' if c.req }} accept="{{ c.accept or '' }}">
 {% else %}<input name="{{ c.n }}" type="{{ c.t }}" {{ 'required' if c.req }} {% if c.t == 'number' %}step="any"{% endif %} value="{{ c.valor if c.valor is not none else '' }}" maxlength="500" {% if c.ph %}placeholder="{{ c.ph }}"{% endif %} autocomplete="{{ 'new-password' if c.t == 'password' else 'off' }}">{% endif %}</label>
 {% endif %}{% endfor %}</div>{% endmacro %}
-{% macro celda(v) %}{% set TONOS = {'Nuevo': 'nuevo', 'Confirmado': 'info', 'Despachado': 'info', 'Facturado en Profit': 'ok', 'Rechazado': 'mal', 'Borrador': 'espera',
+{% macro celda(v) %}{% set TONOS = {'Nuevo': 'nuevo', 'Confirmado': 'info', 'Despachado': 'info', 'Facturado': 'ok', 'Rechazado': 'mal', 'Borrador': 'espera',
   'Enviado': 'info', 'Aceptado': 'ok', 'Activo': 'ok', 'Activa': 'ok', 'Pausado': 'espera', 'Pausada': 'espera', 'Suspendida': 'mal', 'Inactivo': 'mal',
   'Sin activar': 'espera', 'Conectado': 'ok', 'Desconectado': 'mal', 'Sin vincular': 'espera', 'Falló la conexión': 'mal', 'Esperando el escaneo del QR': 'espera',
   'Iniciando…': 'espera', 'Vinculando…': 'espera', 'Requiere atención en el teléfono': 'mal', 'ok': 'ok', 'error': 'mal', '🙋 Pidió una persona': 'nuevo'} %}
@@ -20,12 +21,12 @@
 {% for s in secciones %}
 {% if s.kpis %}<div class="kpis">{% for k in s.kpis %}{% set ic, tono = kpi_estilo(k[0], k[1], loop.index0) %}
 <div class="kpi kpi-{{ k[4] if k|length > 4 and k[4] else tono }}"><div class="kpi-cab"><span>{{ k[0] }}</span><i class="kpi-ico">{{ icono(k[3] if k|length > 3 and k[3] else ic) }}</i></div>
-<b{% if k[1]|string|length > 11 %} class="largo"{% endif %}>{{ k[1] }}</b>{% if k|length > 2 and k[2] %}<small>{{ k[2] }}</small>{% endif %}</div>{% endfor %}</div>
+<b{% if k[1]|string|length > 10 %} class="largo"{% endif %}>{{ k[1] }}</b>{% if k|length > 2 and k[2] %}<small>{{ k[2] }}</small>{% endif %}</div>{% endfor %}</div>
 {% else %}{% set plegar = s.form and not s.tabla and not s.pares and s.titulo and secciones|length > 2 and not s.abierto %}
 {% if plegar %}<details class="tarjeta plegable"><summary><h2>{{ s.titulo }}</h2></summary>{% else %}<section class="tarjeta">{% if s.titulo %}<h2>{{ s.titulo }}</h2>{% endif %}{% endif %}
 {% if s.nota %}<p class="nota">{{ s.nota }}</p>{% endif %}
 {% if s.pasos %}<ol class="pasos">{% for t, est in s.pasos %}<li class="{{ est }}"><span class="marca-paso" aria-hidden="true"></span>{{ t }}<span class="lectores">{{ ' (hecho)' if est == 'hecho' else ' (pendiente)' }}</span></li>{% endfor %}</ol>{% endif %}
-{% if s.form %}<form method="post" action="{{ s.form.action }}" {% if s.form.confirmar %}data-confirmar="{{ s.form.confirmar }}"{% endif %}><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if s.form %}<form method="post" action="{{ s.form.action }}" {% if s.form.campos|selectattr('t', 'equalto', 'file')|list %}enctype="multipart/form-data"{% endif %} {% if s.form.confirmar %}data-confirmar="{{ s.form.confirmar }}"{% endif %}><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {{ campos(s.form.campos) }}<div class="pie-form"><button class="btn {{ s.form.boton_clase or '' }}">{{ s.form.boton }}</button></div></form>{% endif %}
 {% if s.qr_wa %}<div class="qr-wa" data-qr-estado="{{ s.qr_wa.estado_url }}"><div class="qr-caja">{% if s.qr_wa.src %}<img src="{{ s.qr_wa.src }}" alt="Código QR para vincular el WhatsApp de la empresa" width="264" height="264" data-qr-img>{% else %}<span class="qr-espera" data-qr-img>Generando el código…</span>{% endif %}</div>
 <p class="nota" data-qr-texto role="status">{{ 'Esperando el escaneo…' if s.qr_wa.src else 'Preparando la conexión con WhatsApp…' }}</p></div>{% endif %}

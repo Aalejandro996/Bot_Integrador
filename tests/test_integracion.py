@@ -99,7 +99,7 @@ def test_recorrido_completo(app):
     r = root.post("/maestro/empresas", data={"accion": "crear", "razon_social": "General de Suministros Orituco, C.A.", "rif": "j123456780",
                                              "direccion": "Altagracia de Orituco", "username": "orituco", "email": "admin@orituco.test",
                                              "correo": "ventas@orituco.test"}, follow_redirects=True)
-    assert "Empresa creada" in r.get_data(as_text=True)
+    assert "Empresa creada" in r.get_data(as_text=True) and "Sistema de General de Suministros Orituco" in r.get_data(as_text=True)   # sigue: su sistema
     assert "Active su cuenta · Surtia" in asuntos("admin@orituco.test") and _enlace(r) in texto_de("admin@orituco.test")   # el enlace llega por correo
     assert "General de Suministros Orituco" in texto_de("admin@orituco.test")
     adm, sec_adm = _activar(app, _enlace(r))
@@ -146,13 +146,18 @@ def test_recorrido_completo(app):
     aviso("session.authenticated", {"sessionId": SID, "phone": "584247770000"})
     assert adm.get("/whatsapp/estado").get_json()["estado"] == "ready"
     assert "Desvincular WhatsApp" in adm.get("/whatsapp").get_data(as_text=True)
-    # --- Profit Plus: activar, descargar .ini, conector firmado
-    assert "Integración activada" in adm.post("/profit", data={"accion": "activar"}, follow_redirects=True).get_data(as_text=True)
+    # --- Profit Plus: lo registró y lo configura el Maestro; la empresa no instala ni configura nada
+    t = adm.get("/catalogo").get_data(as_text=True)
+    assert "lo administra Surtia" in t.lower() or "Lo administra Surtia" in t
+    assert adm.get(f"/maestro/empresas/{eid}").status_code == 403 and adm.get(f"/maestro/empresas/{eid}/descargar/configuracion").status_code == 403
+    assert adm.post("/profit", data={"accion": "activar"}).status_code == 405                    # ya no hay activación del lado del cliente
+    t = root.get(f"/maestro/empresas/{eid}").get_data(as_text=True)
+    assert "Profit Plus" in t and "surtia_conector.ini" in t and "Opciones de Profit Plus" in t
     import configparser
     ini = configparser.ConfigParser(interpolation=None, inline_comment_prefixes=(";",))
-    ini.read_string(adm.get("/profit/descargar/configuracion").get_data(as_text=True))
+    ini.read_string(root.get(f"/maestro/empresas/{eid}/descargar/configuracion").get_data(as_text=True))
     cid, cl = ini["surtia"]["conector"], ini["surtia"]["clave"]
-    assert ini["surtia"]["url"] == "https://bot.test" and b"saStockAlmacen" in adm.get("/profit/descargar/usuario-sql").data
+    assert ini["surtia"]["url"] == "https://bot.test" and b"saStockAlmacen" in root.get(f"/maestro/empresas/{eid}/descargar/usuario-sql").data
     def conector(ruta, datos, clave_=None, fecha=None):
         cuerpo = gzip.compress(json.dumps(datos, default=str).encode()); f = fecha or int(time.time())
         return anon.post("/api/profit/v1/" + ruta, data=cuerpo, content_type="application/json",
@@ -169,8 +174,12 @@ def test_recorrido_completo(app):
     r = conector("sync", foto)
     assert (r.get_json()["articulos"], r.get_json()["clientes"]) == (3, 1)
     assert conector("sync", {"articulos": "x", "clientes": []}).status_code == 400 and _uno(app, "SELECT count(*) FROM profit_articulos") == 3
-    t = adm.get("/profit").get_data(as_text=True)
-    assert "HARINA PAN 1KG" in t and "1.0.0" in t and "01 · PRINCIPAL" in t
+    assert "HARINA PAN 1KG" in adm.get("/catalogo").get_data(as_text=True)
+    t = root.get(f"/maestro/empresas/{eid}").get_data(as_text=True)
+    assert "1.0.0" in t and "01 · PRINCIPAL" in t and "HARINA" not in t                        # el Maestro ve estados, no el catálogo
+    root.post(f"/maestro/empresas/{eid}", data={"accion": "opciones", "activo": "1", "almacenes": "01", "lista_precio": "01", "restar_comprometido": "1",
+                                                 "solo_con_existencia": "0"})
+    assert conector("ping", {}).get_json()["config"]["almacenes"] == ["01"]
     # --- el bot atiende con el catálogo de Profit
     msg = lambda i, txt, **extra: aviso("message.received", {"id": f"true_584147778899@c.us_M{i}", "from": "584147778899@c.us", "chatId": "584147778899@c.us",
                                                             "type": extra.pop("tipo", "text"), "body": txt, "kind": "individual", **extra})
@@ -216,13 +225,56 @@ def test_recorrido_completo(app):
     r = root.post("/maestro/empresas", data={"accion": "crear", "razon_social": "Otra CA", "rif": "J-22222222-2", "username": "otra"}, follow_redirects=True)
     otra, _ = _activar(app, _enlace(r))
     assert "Otra CA" in root.get("/maestro").get_data(as_text=True)               # empresa sin WhatsApp: el monitoreo no se cae
+    # --- otra empresa con su catálogo en Excel/CSV: lo sube el Maestro (vista previa → importar)
+    e2 = _uno(app, "SELECT id FROM empresas WHERE rif='J-22222222-2'")
+    t = root.post(f"/maestro/empresas/{e2}", data={"accion": "sistema", "sistema": "archivo"}, follow_redirects=True).get_data(as_text=True)
+    assert "Sistema registrado: Archivo Excel o CSV" in t and "Subir el catálogo" in t
+    root.post(f"/maestro/empresas/{e2}", data={"accion": "opciones", "activo": "1", "solo_con_existencia": "0", "moneda": "USD", "alicuota": "G"})
+    hoja = "Código;Descripción;Precio;Stock\nTOR-01;TORNILLO 1/4;0,50;1.200\nmal codigo;SIN CODIGO;1;1\n".encode()
+    t = root.post(f"/maestro/empresas/{e2}", data={"accion": "importar", "modo": "vista", "archivo": (io.BytesIO(hoja), "lista.csv")},
+                  content_type="multipart/form-data").get_data(as_text=True)
+    assert "Vista previa de lista.csv" in t and "TORNILLO 1/4" in t and _uno(app, "SELECT count(*) FROM profit_articulos WHERE empresa_id=:e", e=e2) == 0
+    t = root.post(f"/maestro/empresas/{e2}", data={"accion": "importar", "modo": "importar", "archivo": (io.BytesIO(hoja), "lista.csv")},
+                  content_type="multipart/form-data", follow_redirects=True).get_data(as_text=True)
+    assert "Catálogo importado: 1 artículo(s)" in t and "1 fila(s) sin código válido" in t
+    assert _uno(app, "SELECT existencia FROM profit_articulos WHERE empresa_id=:e AND codigo='TOR-01'", e=e2) == Decimal("1200")
+    t = otra.get("/catalogo").get_data(as_text=True); assert "TORNILLO 1/4" in t and "HARINA" not in t
+    # --- y luego WooCommerce (nube): el Maestro guarda las claves cifradas y prueba la lectura
+    def woo(metodo, url, cuerpo=None, cab=None):
+        assert cab["Authorization"].startswith("Basic ")
+        if "/products?" in url and "page=1" in url:
+            return 200, json.dumps([{"id": 7, "sku": "CAM-01", "name": "CAMISA AZUL", "price": "12.5", "manage_stock": True, "stock_quantity": 4, "tax_status": "taxable"}]).encode()
+        if "/customers?" in url and "page=1" in url:
+            return 200, json.dumps([{"id": 3, "email": "ana@test.com", "first_name": "Ana", "last_name": "Ruiz", "billing": {"phone": "04141234567"}}]).encode()
+        return 200, b"[]"
+    app.extensions["fuente_transporte"] = woo
+    root.post(f"/maestro/empresas/{e2}", data={"accion": "sistema", "sistema": "woocommerce"})
+    assert _uno(app, "SELECT count(*) FROM profit_articulos WHERE empresa_id=:e", e=e2) == 0            # al cambiar de sistema se borra el anterior
+    import socket
+    real = socket.getaddrinfo
+    socket.getaddrinfo = lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 443))]
+    try:
+        t = root.post(f"/maestro/empresas/{e2}", data={"accion": "opciones", "url": "https://tienda.test", "ck": "ck_secreta", "cs": "cs_secreto", "moneda": "USD",
+                                                       "activo": "1", "solo_con_existencia": "0"}, follow_redirects=True).get_data(as_text=True)
+        assert "Opciones guardadas" in t and "guardada" in t and "ck_secreta" not in t
+        socket.getaddrinfo = lambda *a, **k: [(2, 1, 6, "", ("10.0.0.5", 443))]
+        t = root.post(f"/maestro/empresas/{e2}", data={"accion": "opciones", "url": "https://interno.test", "activo": "1"}, follow_redirects=True).get_data(as_text=True)
+        assert "red interna" in t
+    finally:
+        socket.getaddrinfo = real
+    assert "ck_secreta" not in (_uno(app, "SELECT credenciales_cifradas FROM profit_conexion WHERE empresa_id=:e", e=e2) or "")
+    t = root.post(f"/maestro/empresas/{e2}", data={"accion": "sincronizar"}, follow_redirects=True).get_data(as_text=True)
+    assert "Lectura correcta: 1 artículo(s) y 1 cliente(s)" in t, t
+    assert _uno(app, "SELECT whatsapp FROM profit_clientes WHERE empresa_id=:e", e=e2) == "584141234567"
+    t = root.get("/maestro/empresas").get_data(as_text=True); assert "WooCommerce" in t and "Profit Plus" in t
     assert otra.get(f"/pedidos/{pid}").status_code == 404 and "COMERCIAL" not in otra.get("/pedidos").get_data(as_text=True)
     cid1 = _uno(app, "SELECT id FROM contactos WHERE empresa_id=:e", e=eid)
     assert otra.get(f"/conversaciones/{cid1}").status_code == 404
     # operador: atiende pero no configura
     r = adm.post("/usuarios", data={"accion": "invitar", "username": "vendedor1", "rol": "Operador"}, follow_redirects=True)
     op, _ = _activar(app, _enlace(r))
-    assert op.get("/pedidos").status_code == 200 and op.get("/profit").status_code == 403 and op.get("/whatsapp").status_code == 403
+    assert op.get("/pedidos").status_code == 200 and op.get("/catalogo").status_code == 200 and op.get("/whatsapp").status_code == 403
+    assert op.get(f"/maestro/empresas/{eid}").status_code == 403
     # el WhatsApp se cae: avisan a la empresa y al Maestro
     aviso("session.status", {"sessionId": SID, "status": "disconnected"})
     assert "El WhatsApp del bot se desconectó · Surtia" in asuntos("admin@orituco.test") and "El WhatsApp del bot se desconectó · Surtia" in asuntos("soporte@gigadevs.test")

@@ -1,4 +1,5 @@
-"""Entradas sin usuario: avisos firmados de la pasarela de WhatsApp y API firmada del conector de Profit Plus."""
+"""Entradas sin usuario: avisos firmados de la pasarela de WhatsApp y API firmada de catálogo (conector de Profit Plus u otro
+sistema, o la integración propia de la empresa). Las rutas /api/profit/v1/* quedan por compatibilidad con los conectores instalados."""
 import json
 import time
 
@@ -9,6 +10,7 @@ from .. import notificaciones as N
 from .. import openwa as OW
 from .. import profit as PF
 from .. import servicios as SV
+from .. import sistemas as SIS
 from ..extensions import csrf, db, limiter
 from ..models import Empresa, WhatsappConfig, ahora
 from . import bp
@@ -58,7 +60,7 @@ def _conector():
     from ..models import ProfitConexion
     c = db.session.execute(select(ProfitConexion).where(ProfitConexion.conector_id == cid)).scalar_one_or_none()
     cuerpo = request.get_data(cache=True)
-    if c is None or not PF.firma_valida(SV.cifrador().descifrar(c.secreto_cifrado), request.headers.get("X-Surtia-Fecha", ""), cuerpo,
+    if c is None or SIS.SISTEMAS.get(c.sistema, {}).get("modo") not in ("agente", "api") or not PF.firma_valida(SV.cifrador().descifrar(c.secreto_cifrado), request.headers.get("X-Surtia-Fecha", ""), cuerpo,
                                          request.headers.get("X-Surtia-Firma", "")):
         abort(401)
     e, plat = db.session.get(Empresa, c.empresa_id), SV.profit_plataforma()
@@ -72,6 +74,7 @@ def _respuesta(c, plat, **extra):
 
 
 @bp.route("/api/profit/v1/ping", methods=["POST"])
+@bp.route("/api/fuente/v1/ping", methods=["POST"], endpoint="fuente_ping")
 @csrf.exempt
 @limiter.limit("30/minute")
 def profit_ping():
@@ -90,6 +93,7 @@ def profit_ping():
 
 
 @bp.route("/api/profit/v1/sync", methods=["POST"])
+@bp.route("/api/fuente/v1/sync", methods=["POST"], endpoint="fuente_sync")
 @csrf.exempt
 @limiter.limit("12/minute")
 def profit_sync():

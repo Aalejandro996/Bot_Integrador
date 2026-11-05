@@ -8,7 +8,7 @@ venta y clientes, y los envía a Surtia para que el bot de WhatsApp los use.
 - **Sin abrir puertos:** solo hace conexiones de salida por HTTPS (443) hacia Surtia. SQL Server no se expone a Internet.
 - **La clave de la base no sale de su red:** la conexión a SQL Server vive solo en `surtia_conector.ini`, en este equipo.
 - **Se configura desde Surtia:** almacenes, lista de precios y si se descuenta lo comprometido se eligen en
-  Surtia → Clientes → Profit Plus; el conector lo aplica en su siguiente lectura.
+  Surtia → Consola Maestro → Empresas → Sistema; el conector lo aplica en su siguiente lectura.
 
 ## Requisitos
 - Windows 10/11 o Windows Server 2012 R2 en adelante, con salida a Internet por HTTPS.
@@ -20,7 +20,7 @@ venta y clientes, y los envía a Surtia para que el bot de WhatsApp los use.
 1. **Usuario de lectura:** abra `crear_usuario_lectura.sql` en SQL Server Management Studio, cambie la contraseña y el
    nombre de la base de la empresa, y ejecútelo.
 2. **Archivos:** cree `C:\Surtia` y copie `surtia_conector.exe` (o `surtia_conector.py`) y `surtia_conector.ini`
-   (descárguelo en Surtia → Clientes → Profit Plus; ya trae la URL, el ID y la clave de su empresa).
+   (lo descarga el equipo de Surtia en Consola Maestro → Empresas → Sistema; ya trae la URL, el ID y la clave de su empresa).
 3. **Conexión a SQL Server:** en `surtia_conector.ini`, sección `[sqlserver]`, escriba el servidor
    (p. ej. `localhost\SQLEXPRESS` o `SERVIDOR\PROFIT`), la base de datos, el usuario `surtia_lectura` y su contraseña.
    Sin usuario se usa la autenticación de Windows de quien ejecute el programa.
@@ -28,7 +28,7 @@ venta y clientes, y los envía a Surtia para que el bot de WhatsApp los use.
 5. **Dejarlo andando:** como Administrador, `C:\Surtia\surtia_conector.exe --instalar-tarea`. Crea la tarea programada
    «Surtia Profit Plus» (cuenta SYSTEM, arranca con Windows): revisa cada 5 minutos y sincroniza según el intervalo
    configurado en Surtia (15 min por defecto).
-6. En Surtia → Clientes → Profit Plus elija los almacenes y la lista de precios. Listo: el bot ya responde con el catálogo de Profit.
+6. En Consola Maestro → Empresas → Sistema elija los almacenes y la lista de precios. Listo: el bot ya responde con el catálogo de Profit.
 
 Registro: `C:\Surtia\surtia_conector.log`. Forzar una lectura ahora: `surtia_conector.exe --forzar`.
 

@@ -1,5 +1,5 @@
 """Guía de inicio paso a paso. Al activar su cuenta, el administrador ve qué hará el bot y cómo dejarlo funcionando;
-cada paso se marca solo según el estado real (WhatsApp vinculado, conector instalado, saludo personalizado, equipo invitado).
+cada paso se marca solo según el estado real (WhatsApp vinculado, catálogo conectado por Surtia, saludo personalizado, equipo invitado).
 El operador ve una versión corta centrada en atender pedidos y conversaciones."""
 from decimal import Decimal
 
@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 
 from .. import bot as BOT
 from .. import servicios as SV
+from .. import sistemas as SIS
 from ..extensions import db
 from ..models import Usuario
 from ..seguridad import eid_actual, registrar, requiere
@@ -33,36 +34,37 @@ def conversacion_demo(empresa: str, catalogo: dict) -> list[tuple[str, str]]:
 
 def _pasos(eid):
     cfg, con = SV.config_wa(eid), SV.profit_conexion(eid)
+    nombre = SIS.nombre(con.sistema if con else None, con.opciones if con else None)
+    modo = SIS.SISTEMAS.get(con.sistema if con else "profit", SIS.SISTEMAS["profit"])["modo"]
     equipo = db.session.execute(select(func.count()).select_from(Usuario).where(Usuario.empresa_id == eid)).scalar() or 0
     wa = bool(cfg and cfg.sesion_estado == "ready")
     return [
         dict(id="conozca", icono="chat", titulo="Conozca a su asistente", hecho=True, quien="todos",
              texto="Surtia es el asistente virtual de su empresa en WhatsApp. Atiende a sus clientes a cualquier hora, con el catálogo, las existencias "
-                   "y los precios de Profit Plus actualizados cada 15 minutos.",
+                   f"y los precios de {nombre}, siempre actualizados.",
              hace=["Saluda por el nombre y pregunta si le escribe un cliente o un proveedor.",
                    "Muestra el catálogo y busca productos por nombre: «tienen harina?».",
                    "Arma el pedido con la existencia real y avisa si algo no alcanza.",
                    "Prepara presupuestos y lee órdenes de compra en PDF.",
                    "Le avisa a usted por correo de cada pedido nuevo.",
                    "Pasa la conversación a una persona cuando el cliente lo pide."],
-             no_hace=["No escribe ni modifica nada en Profit Plus (solo lectura).", "No cobra ni emite la factura fiscal: eso sigue en Profit."]),
+             no_hace=[f"No escribe ni modifica nada en {nombre} (solo lectura).", f"No cobra ni emite la factura fiscal: eso sigue en {nombre}."]),
         dict(id="whatsapp", icono="whatsapp", titulo="Vincule el WhatsApp de la empresa", hecho=wa, quien="admin", url=url_for("web.whatsapp"), boton="Ir a WhatsApp",
              texto="El bot responde desde el número de su empresa. Se vincula una sola vez, como WhatsApp Web.",
              hace=["Entre a WhatsApp y pulse «Conectar».", "En el teléfono de la empresa: WhatsApp → Dispositivos vinculados → Vincular un dispositivo.",
                    "Escanee el código QR de la pantalla. Listo: el estado cambia a «Conectado»."],
              consejo="Use un número dedicado a ventas y deje ese teléfono con Internet. Si se desvincula, Surtia le avisa por correo."),
-        dict(id="profit", icono="base", titulo="Conecte Profit Plus", hecho=bool(con and con.ultima_sync), quien="admin", url=url_for("web.profit"), boton="Ir a Profit Plus",
-             texto="Un conector pequeño se instala en el servidor donde está Profit Plus. Solo lee: artículos, existencias, precios y clientes.",
-             hace=["En Profit Plus pulse «Activar integración» y descargue surtia_conector.ini.",
-                   "Su técnico ejecuta crear_usuario_lectura.sql en SQL Server (un usuario que solo puede leer).",
-                   "Copie el conector y el .ini en C:\\Surtia, complete los datos de SQL Server y ejecute «surtia_conector --probar».",
-                   "Ejecute «surtia_conector --instalar-tarea»: desde ahí sincroniza solo."],
-             consejo="No hace falta abrir puertos ni exponer SQL Server a Internet: el conector solo envía datos por HTTPS."),
-        dict(id="catalogo", icono="paquete", titulo="Elija almacenes y lista de precios", hecho=bool(con and con.ultima_sync and (con.almacenes or con.lista_precio)),
-             quien="admin", url=url_for("web.profit"), boton="Configurar catálogo",
-             texto="Decida qué existencia ve el cliente y con qué precios vende el bot.",
-             hace=["Marque los almacenes de venta (por ejemplo, sin el de mermas).", "Elija la lista de precios de venta.",
-                   "Decida si muestra la existencia menos lo comprometido y si ofrece solo lo que tiene en existencia."]),
+        dict(id="sistema", icono="base", titulo=f"Su catálogo de {nombre}: lo conectamos nosotros", hecho=bool(con and con.ultima_sync), quien="todos",
+             url=url_for("web.catalogo"), boton="Ver el catálogo",
+             texto=f"El equipo de Surtia conecta {nombre} por usted: no tiene que instalar ni configurar nada. Surtia solo lee artículos, existencias, "
+                   "precios y clientes; nunca escribe ni modifica nada.",
+             hace=(["Coordinamos con usted o su técnico la instalación del conector de solo lectura (sin abrir puertos)."] if modo == "agente" else
+                   ["Nos conectamos a su sistema en la nube con un acceso de solo lectura."] if modo == "nube" else
+                   ["Usted nos envía su lista de productos en Excel y nosotros la cargamos."] if modo == "archivo" else
+                   ["Entregamos a su proveedor los datos de la API para que envíe el catálogo."]) +
+                  ["Elegimos con usted los almacenes, la lista de precios y qué productos ofrece el bot.",
+                   "Cuando esté listo, verá sus productos en «Catálogo» y este paso se marcará solo."],
+             consejo="¿Quiere cambiar algo del catálogo (almacenes, precios, productos)? Escríbanos por WhatsApp y lo ajustamos."),
         dict(id="voz", icono="chat", titulo="Personalice cómo habla el bot", hecho=bool(cfg and (cfg.bienvenida or cfg.instrucciones_pago)), quien="admin",
              url=url_for("web.whatsapp"), boton="Personalizar",
              texto="Ajuste el saludo y la información que el bot da al cerrar cada pedido.",
@@ -70,16 +72,16 @@ def _pasos(eid):
                    "Presupuestos: que el bot los envíe al instante o que un asesor los revise primero."]),
         dict(id="equipo", icono="usuarios", titulo="Invite a su equipo", hecho=equipo > 1, quien="admin", url=url_for("web.usuarios"), boton="Invitar usuarios",
              texto="Cada persona entra con su propio usuario y verificación en dos pasos.",
-             hace=["Operador: atiende pedidos, conversaciones y presupuestos.", "Administrador: además configura WhatsApp, Profit Plus y usuarios.",
+             hace=["Operador: atiende pedidos, conversaciones y presupuestos.", "Administrador: además configura el WhatsApp, el saludo del bot y los usuarios.",
                    "Cada invitado recibe un enlace de un solo uso para crear su clave."]),
         dict(id="demo", icono="actividad", titulo="Así conversará con sus clientes", hecho=True, quien="todos", demo=True,
-             texto="Esta conversación la generó el bot de verdad con " + ("el catálogo de su empresa." if con and con.ultima_sync else "un catálogo de ejemplo.")),
+             texto="Esta conversación la generó el bot de verdad con " + ("el catálogo de su empresa." if con and con.ultima_sync else "un catálogo de ejemplo (el suyo aparecerá cuando lo conectemos).")),
         dict(id="atender", icono="recibo", titulo="Atienda los pedidos", hecho=True, quien="todos", url=url_for("web.pedidos"), boton="Ver pedidos",
-             texto="Cada pedido llega a Pedidos (y a su correo). Ustedes lo revisan y lo cargan en Profit Plus para facturar.",
+             texto=f"Cada pedido llega a Pedidos (y a su correo). Ustedes lo revisan y lo cargan en {nombre} para facturar.",
              hace=["Nuevo → revíselo y márquelo «Confirmado»: el cliente recibe el aviso por WhatsApp.",
-                   "Despachado → cuando sale la mercancía.", "Facturado en Profit → cuando emitió la factura en Profit Plus.",
+                   "Despachado → cuando sale la mercancía.", f"Facturado → cuando emitió la factura en {nombre}.",
                    "En Conversaciones verá quién pidió hablar con una persona y podrá responderle desde aquí.",
-                   "Exporte los pedidos a Excel (CSV) con el código de cliente para cargarlos en Profit."]),
+                   "Exporte los pedidos a Excel (CSV) con el código de cliente para cargarlos en su sistema."]),
         dict(id="prueba", icono="ok", titulo="Haga una prueba", hecho=False, quien="admin",
              texto="Desde otro teléfono escríbale «Hola» al número de la empresa y pida un producto. Verá el pedido aparecer en Pedidos.",
              hace=["Pruebe buscar por nombre, agregar con «código cantidad» y confirmar con «eso es todo».",

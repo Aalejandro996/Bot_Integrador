@@ -20,7 +20,7 @@ class Config:
     FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
     APP_BASE_URL = (os.environ.get("APP_BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "http://127.0.0.1:5000").rstrip("/")
     APP_NOMBRE = os.environ.get("APP_NOMBRE", "Surtia")
-    APP_LEMA = os.environ.get("APP_LEMA", "Pedidos por WhatsApp con su inventario de Profit Plus")
+    APP_LEMA = os.environ.get("APP_LEMA", "Pedidos por WhatsApp con el inventario de su sistema")
     # Correo (enlaces de activación, alertas de seguridad, avisos de pedidos). Igual que Contax: Brevo, SMTP o consola.
     BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
     MAIL_BACKEND = os.environ.get("MAIL_BACKEND", "brevo" if os.environ.get("BREVO_API_KEY") else "console")   # brevo | smtp | console

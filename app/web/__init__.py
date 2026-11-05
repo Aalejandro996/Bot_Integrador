@@ -1,5 +1,5 @@
-"""Pantallas: auth (login, MFA, activación), cliente (WhatsApp, Profit, pedidos, conversaciones, presupuestos, usuarios),
-maestro (empresas, pasarela, parámetros, API Profit y monitoreo) y api (avisos de la pasarela y conector de Profit)."""
+"""Pantallas: auth (login, MFA, activación), cliente (WhatsApp, catálogo, pedidos, conversaciones, presupuestos, usuarios),
+maestro (empresas, pasarela, parámetros, API y monitoreo), conexiones (sistema de cada empresa) y api (avisos y catálogo firmado)."""
 from flask import Blueprint, current_app, flash, g, render_template, request
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.local import LocalProxy
@@ -41,4 +41,4 @@ def hora(ts):
     return a_hora_ve(ts).strftime("%Y-%m-%d %H:%M") if ts else "—"
 
 
-from . import api, auth, cliente, guia, maestro  # noqa: E402,F401  (registran sus rutas)
+from . import api, auth, cliente, conexiones, guia, maestro  # noqa: E402,F401  (registran sus rutas)

@@ -159,6 +159,13 @@ code{font-family:var(--mono);font-size:.86em;background:var(--fondo-2);border:1p
 .etq,.campo legend{font-size:.84rem;font-weight:650;color:var(--texto);padding:0}
 .campo legend{margin-bottom:7px}
 .etq i{font-style:normal;font-weight:400;color:var(--suave)}
+.campo .ayuda{font-size:.78rem;color:var(--suave);margin-top:-2px}
+.campo input[type=file]{padding:9px;background:var(--fondo-2);cursor:pointer}
+.sistemas{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:4px 0 0}
+.sistema{border:1px solid var(--linea);border-radius:14px;padding:14px 16px;background:var(--papel)}
+.sistema b{display:block;font-size:.95rem}
+.sistema small{display:block;color:var(--suave);font-size:.8rem;margin-top:4px;line-height:1.4}
+.sistema .estado{margin-top:8px}
 input,select,textarea{font:inherit;color:var(--texto);background-color:var(--papel);border:1px solid var(--linea-2);border-radius:var(--radio-sm);padding:10px 13px;width:100%;
   min-height:44px;transition:border-color .15s,box-shadow .15s}
 input::placeholder,textarea::placeholder{color:#90A0A5}

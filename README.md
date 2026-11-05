@@ -35,12 +35,12 @@ Plantilla HTML propia con estilos en línea y versión de texto (`app/plantilla_
 - Los avisos se envían **después** de guardar en la base y en segundo plano: no demoran al bot. Nunca llevan conversaciones.
 
 ## Quién hace qué
-- **Cliente (Administrador):** WhatsApp (vincula su número con QR, opciones del bot), Profit Plus (activa el conector, descarga
-  `surtia_conector.ini`, elige almacenes, lista de precios y existencia), Usuarios (invita operadores).
-- **Cliente (Operador y Administrador):** Panel, Pedidos (cambiar estado y avisar por WhatsApp, exportar CSV para cargar en Profit),
-  Conversaciones (responder, «pidió una persona»), Presupuestos.
+- **Cliente (Administrador):** WhatsApp (vincula su número con QR, opciones del bot), Usuarios (invita operadores). No configura
+  conexiones con su sistema.
+- **Cliente (Operador y Administrador):** Panel, Pedidos (cambiar estado y avisar por WhatsApp, exportar CSV para cargar en su sistema),
+  Conversaciones (responder, «pidió una persona»), Presupuestos, Catálogo (solo lectura).
 - **Gigadevs (Maestro):** Monitoreo (estado del WhatsApp, mensajes recibidos/enviados/fallidos 24 h, pedidos, última foto de Profit,
-  alertas) y API de Profit (activar/pausar, URL, intervalo, topes, instalador); Empresas (alta con enlace de activación, suspender);
+  alertas) y API de Profit (activar/pausar, URL, intervalo, topes, instalador); Empresas (alta con enlace de activación y sistema a conectar, suspender) y el **Sistema** de cada empresa (tipo y opciones, conector, claves, carga de Excel);
   Pasarela de WhatsApp (URL y clave de OpenWA); Tasa BCV e IVA; Maestros; Bitácora. Ve conteos y estados, no conversaciones ni catálogos.
 
 ## Despliegue en Render (una vez)
@@ -72,8 +72,26 @@ cómo vincular WhatsApp, conectar Profit, elegir almacenes y precios, personaliz
 probar. Cada paso se marca solo según el estado real, y hay una conversación de ejemplo generada por el bot con el catálogo de la
 empresa. El operador ve una versión corta. También recibe un correo de bienvenida con los primeros pasos.
 
-## Otros sistemas además de Profit
-Estudio de factibilidad y guía para promoción: [`docs/ESTUDIO_MULTISISTEMA.md`](docs/ESTUDIO_MULTISISTEMA.md).
+## Sistemas de cada empresa (Profit Plus y otros)
+**La conexión la registra y la configura el Maestro; la empresa no instala ni configura nada** (solo ve su «Catálogo», en lectura).
+Consola Maestro → Empresas → abrir la empresa → «Sistema administrativo»: se elige el sistema y aparecen sus opciones.
+
+| Sistema | Cómo se lee | Opciones que pide |
+|---|---|---|
+| Profit Plus *(probado)* | Conector de Windows en su servidor | almacenes, lista de precios, existencia comprometida · descarga del `.ini` y del conector |
+| Otro sistema con SQL Server *(beta)* | El mismo conector | las 6 consultas SELECT a la medida (se rechaza cualquier escritura) |
+| Odoo *(beta)* | Surtia consulta su API JSON-RPC | dirección, base de datos, usuario, clave API (cifrada), almacén, moneda |
+| WooCommerce *(beta)* | Surtia consulta su API REST | dirección, claves ck/cs de lectura (cifradas), moneda, existencia sin control de inventario |
+| Hoja en línea *(beta)* | Surtia descarga el CSV publicado | enlace (cifrado), columnas, moneda, IVA |
+| Archivo Excel/CSV *(beta)* | El Maestro lo sube (vista previa → importar) | columnas (se detectan solas), moneda, IVA |
+| API de Surtia *(beta)* | El integrador envía la foto firmada | ID y clave en `surtia_api.txt` · `/api/fuente/v1/{ping,sync}` |
+
+- Los sistemas en la nube se leen solos cada *N* minutos (intervalo de «Monitoreo y API») con un hilo del servidor web
+  (`LECTURAS_PROGRAMADAS=1`, candado de PostgreSQL si hay varios procesos). Solo HTTPS a direcciones públicas: se bloquean redes internas,
+  también tras redirecciones.
+- Cambiar de sistema borra el catálogo anterior y anula la clave del conector anterior. «Facturado en Profit» pasó a «Facturado».
+- Lógica de cada sistema: `app/sistemas.py` (pura, probada en `tests/test_sistemas.py`); pantallas: `app/web/conexiones.py`.
+- Estudio y pendientes: [`docs/ESTUDIO_MULTISISTEMA.md`](docs/ESTUDIO_MULTISISTEMA.md).
 
 ## Tablas
 Todas las tablas con más de 5 filas traen búsqueda (sin importar acentos), filtros por columna (estado, cliente, origen…), rango de

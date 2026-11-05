@@ -8,7 +8,7 @@ from .extensions import db
 M = db.Numeric(18, 2)
 Q = db.Numeric(18, 4)
 ROLES = ("Maestro", "Administrador", "Operador")
-ESTADOS_PEDIDO = ("Nuevo", "Confirmado", "Despachado", "Facturado en Profit", "Rechazado")
+ESTADOS_PEDIDO = ("Nuevo", "Confirmado", "Despachado", "Facturado", "Rechazado")
 ESTADOS_PRESUPUESTO = ("Borrador", "Enviado", "Aceptado", "Rechazado")
 
 
@@ -116,7 +116,7 @@ class Contacto(db.Model):
     nombre = db.Column(db.Text)
     tipo = db.Column(db.Text, nullable=False, default="nuevo")
     rif = db.Column(db.Text)
-    codigo_profit = db.Column(db.Text)                          # co_cli si se reconoció en Profit
+    codigo_profit = db.Column(db.Text)                          # código del cliente en el sistema de la empresa
     estado = db.Column(db.JSON, nullable=False, default=dict)    # conversación en curso (paso, carrito, oferta)
     atencion = db.Column(db.Boolean, nullable=False, default=False)   # pidió hablar con una persona
     ultimo_mensaje = db.Column(db.DateTime(timezone=True))
@@ -138,7 +138,7 @@ class Mensaje(db.Model):
 
 
 class Pedido(db.Model):
-    """Pedido de un cliente (orden de venta con lo disponible) u oferta de un proveedor. La factura se emite en Profit."""
+    """Pedido de un cliente (orden de venta con lo disponible) u oferta de un proveedor. La factura se emite en el sistema de la empresa."""
     __tablename__ = "pedidos"
     id = db.Column(db.BigInteger, primary_key=True)
     empresa_id = db.Column(db.ForeignKey("empresas.id"), nullable=False, index=True)
@@ -149,7 +149,7 @@ class Pedido(db.Model):
     telefono = db.Column(db.Text)
     nombre = db.Column(db.Text)
     rif = db.Column(db.Text)
-    codigo_cliente = db.Column(db.Text)                        # co_cli de Profit, para cargarlo allá
+    codigo_cliente = db.Column(db.Text)                        # código del cliente en su sistema, para cargarlo allá
     lineas = db.Column(db.JSON, nullable=False, default=list)   # [{codigo, descripcion, cantidad, precio, alicuota}]
     total = db.Column(M, nullable=False, default=0)            # referencial en Bs, sin IVA
     nota = db.Column(db.Text)
@@ -183,7 +183,8 @@ class Presupuesto(db.Model):
                       CheckConstraint(f"estado IN {ESTADOS_PRESUPUESTO}", name="ck_presupuesto_estado"))
 
 
-# ====================================================================== Profit Plus (solo lectura)
+# ====================================================================== sistema administrativo de la empresa (solo lectura)
+# Las tablas conservan el prefijo «profit_» por compatibilidad; sirven para cualquier sistema (columna «sistema», ver app/sistemas.py).
 class ProfitPlataforma(db.Model):
     __tablename__ = "profit_plataforma"
     id = db.Column(db.Integer, primary_key=True, default=1)
@@ -200,8 +201,13 @@ class ProfitPlataforma(db.Model):
 
 
 class ProfitConexion(db.Model):
+    """Conexión de la empresa con su sistema. La registra y configura el Maestro; la empresa solo ve el estado y el catálogo."""
     __tablename__ = "profit_conexion"
     empresa_id = db.Column(db.ForeignKey("empresas.id"), primary_key=True)
+    sistema = db.Column(db.Text, nullable=False, default="profit", server_default="profit")   # profit | sql | odoo | woocommerce | hoja | archivo | api
+    opciones = db.Column(db.JSON, nullable=False, default=dict)                # opciones propias del sistema (URL, consultas, mapeo de columnas…)
+    credenciales_cifradas = db.Column(db.Text)                                  # JSON cifrado (Fernet) con claves de API de sistemas en la nube
+    ultimo_intento = db.Column(db.DateTime(timezone=True))                      # última lectura programada (sistemas en la nube)
     conector_id = db.Column(db.Text, nullable=False, unique=True)
     secreto_cifrado = db.Column(db.Text, nullable=False)
     activo = db.Column(db.Boolean, nullable=False, default=True)

@@ -2,7 +2,7 @@
 (pedido nuevo, cliente que pide una persona, presupuesto aceptado, WhatsApp desconectado).
 
 Los avisos de operación se ENCOLAN durante la petición y solo salen después de guardar en la base de datos (despachar),
-para no avisar de algo que luego se deshizo. Nunca llevan conversaciones completas ni datos de Profit: solo lo necesario."""
+para no avisar de algo que luego se deshizo. Nunca llevan conversaciones completas ni datos del sistema de la empresa: solo lo necesario."""
 from flask import current_app, g, has_request_context, request, url_for
 from sqlalchemy import select
 
@@ -65,7 +65,7 @@ def enlace_activacion(u: Usuario, enlace: str, motivo="invitacion", empresa: Emp
     cuerpo = (f"Hola{(' ' + u.nombre) if u.nombre else ''}:\n\n"
               + (f"Se generó un nuevo enlace para su cuenta{org}. Al usarlo se reemplazan su contraseña y su verificación en dos pasos, "
                  "y se cierran sus sesiones abiertas." if nuevo else
-                 f"Se creó su cuenta{org} en Surtia, el asistente de pedidos por WhatsApp conectado a Profit Plus.")
+                 f"Se creó su cuenta{org} en Surtia, el asistente de pedidos por WhatsApp conectado a su sistema administrativo.")
               + "\n\nCon el botón creará su contraseña y activará la verificación en dos pasos (Google Authenticator, Microsoft Authenticator u otra).")
     filas = [("Usuario", u.username), ("Rol", u.rol), ("Vigencia", "72 horas, un solo uso")]
     enviado = False
@@ -111,6 +111,11 @@ def _documento(d, eid, intro, boton, aviso):
                 texto=PC.documento_texto(d, em, intro, boton, cfg["APP_NOMBRE"]))
 
 
+def _sistema(eid) -> str:
+    from .servicios import nombre_sistema
+    return nombre_sistema(eid)
+
+
 def pedido_nuevo(p):
     tipo = "Orden de venta (PDF)" if p.origen == "whatsapp_pdf" else ("Pedido" if p.tipo == "venta" else "Solicitud de oferta")
     filas = [("Número", f"N° {p.numero}"), ("Tipo", tipo), ("Cliente", p.nombre or "—"), ("WhatsApp", f"+{p.telefono}"),
@@ -118,7 +123,7 @@ def pedido_nuevo(p):
     if p.referencia_cliente: filas.append(("Orden de compra del cliente", p.referencia_cliente))
     from .servicios import documento_pedido
     intro = (f"{p.nombre or 'Un cliente'} hizo un {tipo.lower()} por WhatsApp (+{p.telefono}). Revíselo, confirme la existencia "
-             "y cárguelo en Profit Plus para emitir la factura.")
+             f"y cárguelo en {_sistema(p.empresa_id)} para emitir la factura.")
     boton = ("Abrir el pedido en Surtia", _url("web.pedido", pid=p.id))
     encolar(correos_empresa(p.empresa_id, ("Administrador", "Operador")), f"{tipo} N° {p.numero} por WhatsApp", intro,
             filas=filas, boton=boton, **_documento(documento_pedido(p), p.empresa_id, intro, boton, ("info", "Pedido nuevo")))
@@ -133,7 +138,7 @@ def atencion(c):
 
 def presupuesto_aceptado(pv):
     from .servicios import documento_presupuesto
-    intro = f"{pv.cliente_nombre or 'El cliente'} aceptó el presupuesto por WhatsApp. Ya puede facturarlo en Profit Plus y coordinar la entrega."
+    intro = f"{pv.cliente_nombre or 'El cliente'} aceptó el presupuesto por WhatsApp. Ya puede facturarlo en {_sistema(pv.empresa_id)} y coordinar la entrega."
     boton = ("Abrir el presupuesto en Surtia", _url("web.presupuesto", pid=pv.id))
     encolar(correos_empresa(pv.empresa_id, ("Administrador", "Operador")), f"Presupuesto N° {pv.numero} aceptado", intro, boton=boton,
             **_documento(documento_presupuesto(pv), pv.empresa_id, intro, boton, ("info", "Presupuesto aceptado")))
@@ -163,13 +168,13 @@ def bienvenida(u: Usuario):
     e = db.session.get(Empresa, u.empresa_id) if u.empresa_id else None
     if not u.email or e is None: return
     if u.rol == "Administrador":
-        pasos = "1) Vincule el WhatsApp de la empresa con el código QR.\n\n2) Conecte Profit Plus instalando el conector (solo lectura).\n\n" \
-                "3) Elija almacenes y lista de precios, y personalice el saludo del bot.\n\n4) Invite a su equipo y haga una prueba escribiéndole al número."
+        pasos = "1) Vincule el WhatsApp de la empresa con el código QR.\n\n2) Personalice el saludo del bot y la información de pago.\n\n" \
+                f"3) Invite a su equipo y haga una prueba escribiéndole al número.\n\nLa conexión con {_sistema(e.id)} la hace el equipo de Surtia: usted no tiene que instalar nada."
     else:
         pasos = "En Pedidos verá lo que piden los clientes por WhatsApp; en Conversaciones, a quienes piden hablar con una persona.\n\n" \
-                "Cambie el estado de cada pedido (Confirmado, Despachado, Facturado en Profit) y el cliente recibe el aviso por WhatsApp."
+                "Cambie el estado de cada pedido (Confirmado, Despachado, Facturado) y el cliente recibe el aviso por WhatsApp."
     encolar([u.email], f"Bienvenido a Surtia, {e.razon_social}",
             f"Su cuenta ya está activa. Surtia será el asistente de WhatsApp de {e.razon_social}: atiende a sus clientes a cualquier hora "
-            "con el catálogo, las existencias y los precios de Profit Plus, y le deja los pedidos listos para facturar.\n\n" + pasos,
+            f"con el catálogo, las existencias y los precios de {_sistema(e.id)}, y le deja los pedidos listos para facturar.\n\n" + pasos,
             boton=("Abrir la guía paso a paso", _url("web.guia")), aviso=("info", "Primeros pasos"),
             nota="La guía también está en el menú «Guía de inicio» cuando la necesite.")
