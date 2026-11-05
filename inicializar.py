@@ -21,6 +21,7 @@ def main():
                     "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS token_recuperacion_hash TEXT UNIQUE",
                     "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS token_recuperacion_vence TIMESTAMPTZ",
                     "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS clave_pendiente_hash TEXT",
+                    "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS licencia_token TEXT",
                     "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS sistema TEXT NOT NULL DEFAULT 'profit'",
                     "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS opciones JSON NOT NULL DEFAULT '{}'",
                     "ALTER TABLE profit_conexion ADD COLUMN IF NOT EXISTS credenciales_cifradas TEXT",

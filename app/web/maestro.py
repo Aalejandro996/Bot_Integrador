@@ -95,6 +95,18 @@ def maestro():
                        campo("url_instalador", "Descarga del instalador surtia_conector.exe (https://…)", req=False, valor=p.url_instalador if p else None)]))])
 
 
+def _fecha_lic(claims):
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(int(claims["exp"]), timezone.utc).strftime("%d/%m/%Y")
+
+
+def _licencia_txt(e):
+    from .. import licencia as LIC
+    claims, motivo = LIC.de_empresa(e)
+    if claims: return f"Vigente hasta {_fecha_lic(claims)}"
+    return LIC.MOTIVOS.get(motivo, "—").replace("La empresa no tiene licencia cargada", "Sin licencia")
+
+
 def _sistema_txt(eid):
     c = SV.profit_conexion(eid)
     return SIS.SISTEMAS.get(c.sistema, {}).get("nombre", "—") if c else "Sin registrar"
@@ -135,6 +147,21 @@ def maestro_empresas():
                 registrar("EMPRESA_CREADA", f"{e.razon_social} {e.rif} admin={u.username} sistema={sistema}", empresa_id=e.id); db.session.commit()
                 flash("Empresa creada. " + N.enlace_activacion(u, enlace, empresa=e)[1] + f" Siguiente paso: configure su sistema ({SIS.SISTEMAS[sistema]['nombre']}).")
                 return e.id
+            elif a in ("licencia", "quitar_licencia"):
+                from .. import licencia as LIC
+                e = db.session.get(Empresa, int(F["eid"]))
+                if e is None: raise ValueError("Empresa inexistente")
+                if a == "licencia":
+                    token = "".join((F.get("token") or "").split())
+                    claims, motivo = LIC.verificar(token, e.rif)
+                    if claims is None and motivo != "verificacion": raise ValueError(LIC.MOTIVOS[motivo])
+                    e.licencia_token = token
+                    registrar("LICENCIA_CARGADA", f"{e.razon_social} suscripción={(claims or {}).get('suscripcion', '?')}", empresa_id=e.id); db.session.commit()
+                    return (f"Licencia de {e.razon_social} cargada" + (f": vence el {_fecha_lic(claims)}." if claims else
+                            " (no se pudo verificar ahora con el servidor de licencias; se volverá a comprobar)."))
+                e.licencia_token = None
+                registrar("LICENCIA_QUITADA", e.razon_social, empresa_id=e.id); db.session.commit()
+                return f"Licencia de {e.razon_social} quitada"
             elif a in ("suspender", "reactivar", "reenlace"):
                 e = db.session.get(Empresa, int(F["eid"]))
                 if e is None: raise ValueError("Empresa inexistente")
@@ -148,23 +175,30 @@ def maestro_empresas():
                 if a == "reenlace": flash(N.enlace_activacion(u, enlace, "reenlace", empresa=e)[1] + " Reemplaza su clave y su MFA.")
             else: raise ValueError("Acción inválida")
         nuevo = []
-        intentar(lambda: nuevo.append(hacer()), "Listo")
-        if nuevo and nuevo[0]: return redirect(url_for("web.maestro_sistema", eid=nuevo[0]))
+        intentar(lambda: nuevo.append(hacer()), lambda _: nuevo[0] if nuevo and isinstance(nuevo[0], str) else "Listo")
+        if nuevo and isinstance(nuevo[0], int): return redirect(url_for("web.maestro_sistema", eid=nuevo[0]))
         return redirect(request.url)
     es = db.session.execute(select(Empresa).order_by(Empresa.razon_social)).scalars().all()
     from .conexiones import OPCIONES_SISTEMA
     n_us = lambda eid: db.session.execute(select(func.count()).select_from(Usuario).where(Usuario.empresa_id == eid)).scalar()
     return pagina("Empresas", [
         dict(nota="Abra una empresa para registrar o cambiar su sistema administrativo y configurarlo. La empresa no configura conexiones.",
-             tabla=dict(cols=["Empresa", "RIF", "Sistema", "Catálogo", "Usuarios", "Estado", "Alta"], num=[4], filas=[
+             tabla=dict(cols=["Empresa", "RIF", "Sistema", "Catálogo", "Usuarios", "Estado", "Licencia", "Alta"], num=[4], filas=[
             dict(url=url_for("web.maestro_sistema", eid=e.id), cells=[e.razon_social, e.rif, _sistema_txt(e.id), _catalogo_txt(e.id), n_us(e.id),
-                                                                       "Activa" if e.activa else "Suspendida", hora(e.creada)]) for e in es])),
+                                                                       "Activa" if e.activa else "Suspendida", _licencia_txt(e), hora(e.creada)]) for e in es])),
         dict(titulo="Nueva empresa", nota="Se crea la empresa y su administrador; recibirá un enlace de un solo uso para crear su contraseña y su verificación en dos pasos.",
              form=dict(action=request.path, boton="Crear empresa", campos=[oculto("crear"), campo("razon_social", "Razón social"), campo("rif", "RIF", ph="J-12345678-9"),
                        campo("direccion", "Dirección", req=False), campo("telefono", "Teléfono", req=False), campo("correo", "Correo de la empresa", "email", req=False),
                        campo("username", "Usuario del administrador"), campo("email", "Correo del administrador", "email", req=False),
                        campo("sistema", "Sistema administrativo a conectar", "select", opciones=OPCIONES_SISTEMA, valor="profit",
                              ayuda="Después de crearla verá las opciones de ese sistema")])),
+        dict(titulo="Licencia de la empresa", nota="Pegue el archivo de licencia que descargó en la Consola Maestra de Gigadevs (Surtia → "
+             "Suscripciones). Debe ser de Surtia y del mismo RIF de la empresa. " + ("El control de licencias está ACTIVO: sin licencia vigente la empresa no "
+             "entra y el bot no atiende." if __import__("app.licencia", fromlist=["x"]).exigida() else "El control está apagado (SURTIA_LICENSE_ENFORCE): la "
+             "licencia se muestra pero todavía no bloquea."),
+             form=dict(action=request.path, boton="Cargar licencia", campos=[oculto("licencia"),
+                 campo("eid", "Empresa", "select", opciones=[(e.id, f"{e.razon_social} ({e.rif})") for e in es]),
+                 campo("token", "Archivo de licencia (texto completo)", "textarea")])),
         dict(titulo="Suspender, reactivar o nuevo enlace del administrador", form=dict(action=request.path, boton="Aplicar", campos=[
             campo("eid", "Empresa", "select", opciones=[(e.id, e.razon_social) for e in es]),
             campo("accion", "Acción", "select", opciones=[("suspender", "Suspender (nadie entra, el bot no atiende)"), ("reactivar", "Reactivar"),

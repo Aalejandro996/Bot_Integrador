@@ -18,6 +18,8 @@ CATALOGO = {
           "alerta", "ambar", ("volver", "inicio")),
     401: ("Su sesión terminó", "Por seguridad cerramos la sesión tras un tiempo sin actividad o porque el paso de verificación venció. Vuelva a iniciar sesión para continuar.",
           "candado", "azul", ("login",)),
+    402: ("La licencia de Surtia no está activa", "La licencia de su empresa venció, se suspendió o aún no se ha cargado. El bot tampoco atiende "
+          "mientras tanto. Escríbanos para renovarla: sus pedidos, conversaciones y datos se conservan.", "candado", "ambar", ("soporte",)),
     403: ("No tiene permiso para ver esto", "Su usuario no tiene acceso a esta sección. Si cree que debería tenerlo, pídaselo al administrador de su empresa.",
           "candado", "rojo", ("inicio", "volver")),
     404: ("No encontramos esta página", "Puede que el enlace esté mal escrito, que la página se haya movido o que lo que busca ya no exista.",
