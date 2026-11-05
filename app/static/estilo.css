@@ -174,3 +174,34 @@ tbody tr:hover td{background:#FAFBFC}
 }
 @media print{.sidebar,.topbar,.no-imprimir{display:none}.app{display:block}body,.doc-publico{background:#fff}.documento{box-shadow:none;border:0}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- acceso: jerarquía clara y mejor adaptación a pantallas pequeñas ---------- */
+.auth{background:var(--fondo)}
+.auth-hero{isolation:isolate;padding:clamp(28px,5vw,72px);min-height:100vh}
+.auth-hero::before{content:"";position:absolute;inset:0 0 auto;height:5px;background:var(--naranja);z-index:-1}
+.auth-hero::after{right:-100px;bottom:-110px;width:min(42vw,480px);height:min(42vw,480px)}
+.auth-hero>div,.auth-hero>.marca,.auth-hero>.peq{position:relative;z-index:1}
+.auth-hero h1{font-size:clamp(2rem,4vw,3.35rem);line-height:1.08;letter-spacing:-.035em}
+.auth-hero p{color:#DCE3EC;line-height:1.75;margin:18px 0}
+.auth-lista{gap:13px;margin-top:24px}
+.auth-lista li{line-height:1.5}
+.auth-caja{padding:clamp(20px,5vw,56px)}
+.auth-form{max-width:440px;padding:clamp(24px,4vw,38px);gap:12px;border-radius:20px;box-shadow:0 18px 50px rgba(15,27,45,.1)}
+.auth-form h2{font-size:1.65rem;letter-spacing:-.025em}
+.auth-form form{gap:16px;margin-top:4px}
+.auth-form label{gap:7px;font-size:.9rem}
+.auth-form input{min-height:48px;border-color:#C5CDD8;border-radius:11px;padding:11px 13px}
+.auth-form input:focus{border-color:var(--azul);box-shadow:0 0 0 3px rgba(11,107,203,.13);outline:0}
+.auth-form button{width:100%;min-height:48px;margin-top:2px;font-size:.98rem}
+.auth-form .msg{margin:0}
+.auth-etiqueta{align-self:flex-start;color:#8A4B00;background:var(--naranja-claro);border:1px solid #FFD49A;border-radius:999px;padding:4px 10px;font-size:.75rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
+.auth-form .peq{line-height:1.6}
+.auth-form .enlaces{margin-top:4px}
+@media(max-width:700px){
+  .auth{grid-template-columns:1fr;min-height:100svh}
+  .auth-hero{min-height:auto;padding:22px 22px 26px;gap:24px}
+  .auth-hero>div{display:none}
+  .auth-hero>.peq{margin:0}
+  .auth-caja{padding:28px 18px 36px;align-items:start}
+  .auth-form{max-width:480px}
+}

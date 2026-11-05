@@ -12,8 +12,8 @@
 {% for m in get_flashed_messages() %}<div class="msg" role="alert">{{ m }}</div>{% endfor %}
 {% set csrf %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endset %}
 {% if vista == 'login' %}
-  <h2>Iniciar sesión</h2><p class="peq">Ingrese con su usuario o correo.</p>
-  <form method="post" autocomplete="off">{{ csrf }}
+  <span class="auth-etiqueta">Acceso seguro</span><h2>Iniciar sesión</h2><p class="peq">Ingrese con su usuario o correo.</p>
+  <form method="post" autocomplete="on">{{ csrf }}
     <label>Usuario o correo<input name="usuario" required maxlength="254" autocomplete="username" autofocus></label>
     <label>Contraseña<input name="clave" type="password" required maxlength="128" autocomplete="current-password"></label>
     <button>Entrar</button></form>

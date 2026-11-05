@@ -1,14 +1,14 @@
-# Blueprint de Render — «Pedyra Orituco» (Gigadevs Corp). Dashboard → New → Blueprint → este repositorio.
+# Blueprint de Render — «bot-integrador» (Gigadevs Corp). Dashboard → New → Blueprint → este repositorio.
 # Seguridad: la base de datos y la pasarela de WhatsApp NO tienen acceso desde Internet (solo la red privada de Render);
 # las claves de la app las genera Render (nadie las ve ni viajan por el repositorio); solo se piden el usuario y el correo del Maestro.
 projects:
-  - name: Pedyra Orituco
+  - name: bot_integrador
     environments:
       - name: produccion
         services:
           # ------------------------------------------------------------- app web (clientes + consola Maestro + API del conector)
           - type: web
-            name: pedyra-orituco
+            name: bot-integrador
             runtime: python
             plan: starter
             region: ohio

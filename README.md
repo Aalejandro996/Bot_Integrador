@@ -7,9 +7,9 @@ El bot arma pedidos, envía presupuestos, lee órdenes de compra en PDF y deja *
 La factura fiscal se sigue emitiendo en Profit Plus: nada se escribe ni se envía a Profit.
 
 ```
- Red del cliente (Windows)                               Render (proyecto «Pedyra Orituco», Ohio)
+ Red del cliente (Windows)                               Render (proyecto «bot_integrador», Ohio)
  ┌─────────────────────────────┐  HTTPS 443, solo SALIDA  ┌──────────────────────┐   red privada   ┌──────────────┐
- │ SQL Server (Profit Plus)    │  foto firmada (HMAC)     │ pedyra-orituco   │◄──────────────►│ pedyra-whatsapp │◄─► WhatsApp
+ │ SQL Server (Profit Plus)    │  foto firmada (HMAC)     │ bot-integrador   │◄──────────────►│ pedyra-whatsapp │◄─► WhatsApp
  │   ▲ SELECT (usuario lectura)│ ───────────────────────► │ (web, consola, API)  │                │ (OpenWA, disco)│
  │ pedyra_conector.exe (tarea)   │ ◄──── configuración ──── │          │           │                └──────────────┘
  └─────────────────────────────┘                          │   pedyra-db (PostgreSQL, sin acceso desde Internet)
@@ -34,7 +34,7 @@ ante el SAPI (Venezuela); solo entonces puede usarse **®**.
 1. Dashboard → **New → Blueprint** → este repositorio → indique `MAESTRO_USUARIO` (y `MAESTRO_EMAIL`) → **Apply**.
    Crea la app web, la pasarela **privada** de WhatsApp con disco y la base de datos sin acceso desde Internet. `SECRET_KEY` y
    `FIELD_ENCRYPTION_KEY` las genera Render (no las cambie después: cifran los secretos guardados).
-2. Logs de `pedyra-orituco` → copie el enlace «Active el Maestro…» (72 h, un uso) → cree su clave y su MFA.
+2. Abra `https://bot-integrador.onrender.com` o revise los logs de `bot-integrador` → copie el enlace «Active el Maestro…» (72 h, un uso) → cree su clave y su MFA.
 3. Logs de `pedyra-whatsapp` → copie la clave de API de OpenWA → Consola → **Pasarela de WhatsApp** (la URL ya viene puesta).
 4. Consola → **Empresas** → nueva empresa con su administrador → envíele el enlace de activación.
 5. El cliente vincula su WhatsApp con el QR e instala el conector (`conector_profit/LEAME.md`).

@@ -1,5 +1,6 @@
 """Inicio de sesión con contraseña + verificación en dos pasos (TOTP) obligatoria, y activación por enlace de un solo uso."""
 from datetime import timedelta
+from urllib.parse import unquote, urlsplit
 
 import segno
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, session, url_for
@@ -50,7 +51,22 @@ def _pre() -> Usuario:
         session.clear(); abort(401)
     u = db.session.get(Usuario, session.get("pre") or 0)
     if u is None or not u.activo: abort(401)
+    # El bloqueo de cuenta debe cubrir también el segundo factor, no solo la contraseña.
+    if u.bloqueado_hasta and u.bloqueado_hasta > ahora():
+        session.clear()
+        abort(429)
     return u
+
+
+def _destino_seguro(valor: str, u: Usuario) -> str:
+    """Acepta solo rutas locales limpias para evitar redirecciones fuera del sitio."""
+    destino = unquote(valor or "")
+    partes = urlsplit(destino)
+    if (not destino.startswith("/") or destino.startswith("//") or "\\" in destino
+            or partes.scheme or partes.netloc or any(ord(c) < 32 for c in destino)
+            or len(destino) >= 200):
+        return _destino(u)
+    return destino
 
 
 @bp.route("/mfa", methods=["GET", "POST"])
@@ -68,9 +84,7 @@ def mfa():
         u.mfa_ultimo_contador = c
         iniciar_sesion(u); g.usuario = u
         registrar("LOGIN", "", empresa_id=u.empresa_id); db.session.commit()
-        sig = request.args.get("siguiente") or ""
-        seguro = sig.startswith("/") and not sig.startswith(("//", "/\\")) and "\\" not in sig and len(sig) < 200
-        return redirect(sig if seguro else _destino(u))
+        return redirect(_destino_seguro(request.args.get("siguiente", ""), u))
     return _vista("mfa")
 
 
