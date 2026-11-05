@@ -2,7 +2,7 @@
 import logging
 import secrets
 
-from flask import Flask, g, render_template, request
+from flask import Flask, g, request
 
 
 def create_app(config=None):
@@ -48,12 +48,6 @@ def create_app(config=None):
         if request.endpoint != "static": r.headers.setdefault("Cache-Control", "no-store")
         return r
 
-    ERRORES = {400: "Solicitud no válida", 401: "Sesión requerida", 403: "Acceso denegado", 404: "Página no encontrada", 405: "Acción no permitida",
-               413: "Archivo demasiado grande", 429: "Demasiadas solicitudes", 500: "Algo salió mal"}
-    for codigo, titulo in ERRORES.items():
-        def manejador(e, codigo=codigo, titulo=titulo):
-            if codigo == 500: db.session.rollback()
-            if request.path.startswith(("/api/", "/wa/")): return {"ok": False, "error": titulo}, codigo
-            return render_template("error.html", codigo=codigo, titulo=titulo), codigo
-        app.register_error_handler(codigo, manejador)
+    from . import errores
+    errores.registrar(app)
     return app

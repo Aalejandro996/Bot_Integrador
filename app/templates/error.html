@@ -1,6 +1,25 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{ codigo }} · {{ titulo }} · {{ config.APP_NOMBRE }}</title><meta name="robots" content="noindex, nofollow">
-<link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any"><link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"></head>
-<body class="err"><main class="err-caja"><p><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="Surtia" width="56" height="56"></p><div class="err-codigo" aria-hidden="true">{{ codigo }}</div><span class="err-chip">Error {{ codigo }}</span>
-<h1>{{ titulo }}</h1><div class="err-acc"><a class="lp-btn" href="/">Ir al inicio</a>
-<a class="lp-btn lp-btn-linea" href="https://wa.me/584242588321?text=Hola%20Gigadevs%2C%20necesito%20ayuda%20con%20el%20bot%20(error%20{{ codigo }})" target="_blank" rel="noopener">Soporte por WhatsApp</a></div></main></body></html>
+<title>{{ titulo }} · {{ config.APP_NOMBRE }}</title><meta name="robots" content="noindex, nofollow"><meta name="theme-color" content="#0B2530">
+<link rel="icon" href="{{ url_for('static', filename='marca/favicon.ico') }}" sizes="any"><link rel="icon" href="{{ url_for('static', filename='marca/logo-icono.svg') }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}"><script src="{{ url_for('static', filename='app.js') }}" defer></script></head>
+<body class="err err-{{ tono }}">
+<header class="err-marca"><a class="marca" href="/"><img src="{{ url_for('static', filename='marca/logo-icono.svg') }}" alt="" width="34" height="34"><span>surt<em>i</em>a<sup>™</sup></span></a></header>
+<main class="err-caja" aria-labelledby="err-titulo">
+  <div class="err-ilustracion" aria-hidden="true"><span class="err-aro"></span><span class="err-aro err-aro-2"></span><i class="err-ico">{{ icono(icono_err) }}</i></div>
+  <span class="err-chip">Error {{ codigo if codigo != 419 else 400 }}</span>
+  <h1 id="err-titulo">{{ titulo }}</h1>
+  <p class="err-texto">{{ texto }}</p>
+  {% if ref %}<p class="err-ref">Código de referencia: <code>{{ ref }}</code></p>{% endif %}
+  <div class="err-acc">
+  {% for a in acciones %}
+    {% if a == 'inicio' %}<a class="lp-btn{{ ' lp-btn-linea' if not loop.first }}" href="/">{{ icono('casa') }}{{ 'Ir a mi panel' if con_sesion else 'Ir al inicio' }}</a>
+    {% elif a == 'volver' %}<a class="lp-btn{{ ' lp-btn-linea' if not loop.first }}" href="/" data-volver>{{ icono('atras') }}Volver atrás</a>
+    {% elif a == 'login' %}<a class="lp-btn{{ ' lp-btn-linea' if not loop.first }}" href="{{ url_login }}">{{ icono('entrar') }}Iniciar sesión</a>
+    {% elif a == 'recargar' %}<a class="lp-btn{{ ' lp-btn-linea' if not loop.first }}" href="{{ request.full_path if request.method == 'GET' else '/' }}" data-recargar>{{ icono('recargar') }}Intentar de nuevo</a>
+    {% elif a == 'soporte' %}<a class="lp-btn lp-btn-linea" href="{{ soporte }}" target="_blank" rel="noopener">{{ icono('whatsapp') }}Soporte por WhatsApp</a>
+    {% endif %}
+  {% endfor %}
+  </div>
+</main>
+<footer class="err-pie">Surtia™ · Gigadevs Corp</footer>
+</body></html>

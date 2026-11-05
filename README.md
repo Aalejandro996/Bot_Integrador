@@ -66,6 +66,13 @@ Plantilla HTML propia con estilos en línea y versión de texto (`app/plantilla_
   reemplaza completa en una transacción; la clave de SQL Server nunca sale de la red del cliente.
 - Secretos (MFA, pasarela, conector, avisos) cifrados en reposo con Fernet. CSV exportado protegido contra fórmulas.
 
+## Carga y errores
+- Barra de progreso arriba al cambiar de página o enviar un formulario, botón con giro mientras se procesa, aviso si el servidor tarda
+  más de 6 s (p. ej. al despertar en Render), «Preparando la descarga…» en CSV/archivos y aviso de «sin conexión».
+- Páginas de error (`app/errores.py`) para 400, 401, 403, 404, 405, 413, 429, 500, 502, 503 y formulario vencido (CSRF): explican qué
+  pasó y ofrecen la salida adecuada (inicio, volver, iniciar sesión, reintentar, soporte). Un 500 muestra un **código de referencia**
+  que queda en el log junto con la traza; nunca se muestran detalles técnicos. `/api/` y `/wa/` responden JSON.
+
 ## Desarrollo
 ```
 python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt
