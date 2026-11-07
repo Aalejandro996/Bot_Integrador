@@ -47,6 +47,12 @@ def main():
                       f"active la cuenta con este enlace (72 h, un uso): {enlace}"), flush=True)
         db.session.commit()
         print("[inicializar] Base de datos lista.", flush=True)
+        # En cada despliegue, las empresas se envían a la Consola Maestra de Gigadevs (idempotente; un fallo no detiene el despliegue)
+        from app import gigadevs as GD
+        from app.models import Empresa
+        if GD.configurado():
+            errores = [x for x in (GD.enviar_seguro(e) for e in db.session.query(Empresa).all()) if x]
+            print(f"[inicializar] Empresas enviadas a la consola de Gigadevs" + (f" (con {len(errores)} error(es): {errores[0]})" if errores else "."), flush=True)
 
 
 if __name__ == "__main__":
