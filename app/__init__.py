@@ -36,6 +36,8 @@ def create_app(config=None):
         if g.get("empresa") is not None and not (request.endpoint or "").startswith("auth.") and not licencia.permite(g.empresa):
             from .errores import pagina
             return pagina(402)
+        from .web.legal import compuerta          # documentos legales vigentes sin aceptar: se aceptan antes de seguir
+        return compuerta()
 
     @app.after_request
     def _cabeceras(r):

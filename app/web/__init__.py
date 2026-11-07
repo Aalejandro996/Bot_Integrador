@@ -41,4 +41,4 @@ def hora(ts):
     return a_hora_ve(ts).strftime("%Y-%m-%d %H:%M") if ts else "—"
 
 
-from . import api, auth, cliente, conexiones, guia, maestro  # noqa: E402,F401  (registran sus rutas)
+from . import api, auth, cliente, conexiones, guia, legal, maestro  # noqa: E402,F401  (registran sus rutas)

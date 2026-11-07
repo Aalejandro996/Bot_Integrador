@@ -20,8 +20,40 @@ log = logging.getLogger("bot.gigadevs")
 PRODUCTO = "surtia"
 
 
+TRANSPORTE = None   # las pruebas lo reemplazan: (metodo, ruta, cuerpo, cabeceras) -> (estado, bytes)
+
+
 class ErrorGigadevs(Exception):
     pass
+
+class _SinRedirecciones(urllib.request.HTTPRedirectHandler):
+    """Nunca seguir redirecciones: la firma no debe viajar a otro servidor."""
+    def redirect_request(self, *a, **k): return None
+
+
+_ABRIDOR = urllib.request.build_opener(_SinRedirecciones)
+
+
+def respuesta_valida(secreto, cabecera, nonce, estado, cuerpo, ahora=None, tolerancia=300) -> bool:
+    """La consola firma cada respuesta (X-Gigadevs-Respuesta) ligada al nonce de la petición: así se sabe que respondió ella, para
+    ESTA petición, y que nadie alteró ni repitió la respuesta en el camino."""
+    partes = dict(x.split("=", 1) for x in (cabecera or "").split(",") if "=" in x)
+    t, f = partes.get("t", ""), partes.get("f", "")
+    if not (t.isdigit() and len(f) == 64) or abs((ahora or time.time()) - int(t)) > tolerancia: return False
+    base = "\n".join([t, nonce, str(estado), hashlib.sha256(cuerpo or b"").hexdigest()])
+    return hmac.compare_digest(hmac.new(secreto.encode(), base.encode(), hashlib.sha256).hexdigest(), f)
+
+
+def _verificar(res, cab):
+    """(estado, cuerpo). Por HTTP real siempre llegan las cabeceras y la firma es obligatoria."""
+    estado, cuerpo = res[0], res[1]
+    if len(res) > 2:
+        nonce = dict(x.split("=", 1) for x in cab["X-Gigadevs-Firma"].split(","))["n"]
+        firma_r = {k.lower(): v for k, v in (res[2] or {}).items()}.get("x-gigadevs-respuesta")
+        if not respuesta_valida(os.environ["GIGADEVS_SYNC_SECRET"], firma_r, nonce, estado, cuerpo):
+            raise ErrorGigadevs("La respuesta de la consola de Gigadevs no trae una firma válida (posible suplantación); se descartó")
+    return estado, cuerpo
+
 
 
 def configurado() -> bool:
@@ -45,13 +77,15 @@ def _peticion(metodo, ruta, datos=None, transporte=None):
     cuerpo = json.dumps(datos).encode() if datos is not None else b""
     cab = {"X-Gigadevs-Firma": firma(os.environ["GIGADEVS_SYNC_SECRET"], metodo, ruta, cuerpo), "Accept": "application/json"}
     if datos is not None: cab["Content-Type"] = "application/json"
-    if transporte: estado, resp = transporte(metodo, ruta, cuerpo, cab)
+    transporte = transporte or TRANSPORTE
+    if transporte: estado, resp = _verificar(transporte(metodo, ruta, cuerpo, cab), cab)
     else:
         req = urllib.request.Request(_url() + ruta, cuerpo or None, cab, method=metodo)
         try:
-            with urllib.request.urlopen(req, timeout=15) as r: estado, resp = r.status, r.read()   # noqa: S310 (https fijo)
-        except urllib.error.HTTPError as e: estado, resp = e.code, e.read()
+            with _ABRIDOR.open(req, timeout=15) as r: res = (r.status, r.read(4 * 1024 * 1024), dict(r.headers))   # noqa: S310 (https, sin redirecciones)
+        except urllib.error.HTTPError as e: res = (e.code, e.read(65536), dict(e.headers or {}))
         except (urllib.error.URLError, OSError) as e: raise ErrorGigadevs(f"No se pudo contactar la consola de Gigadevs: {e}") from e
+        estado, resp = _verificar(res, cab)
     try: d = json.loads(resp or b"{}")
     except ValueError: d = {}
     return estado, d
@@ -82,3 +116,17 @@ def traer_licencia(e, transporte=None) -> str | None:
     if estado == 404: return None
     if estado != 200 or not d.get("token"): raise ErrorGigadevs(d.get("message") or f"La consola de Gigadevs respondió {estado}")
     return d["token"]
+
+
+def legal_pendientes(usuario: str, perfil: str = "usuario", transporte=None) -> list:
+    """Documentos legales vigentes de Surtia (aprobados en la Consola Maestra) que esta persona aún no aceptó."""
+    from urllib.parse import urlencode
+    estado, d = _peticion("GET", f"/sync/v1/{PRODUCTO}/legal/pendientes?{urlencode({'usuario': usuario, 'perfil': perfil})}", None, transporte)
+    if estado != 200: raise ErrorGigadevs(d.get("message") or f"La consola de Gigadevs respondió {estado}")
+    return d.get("pendientes") or []
+
+
+def legal_aceptar(transporte=None, **datos) -> list:
+    estado, d = _peticion("POST", f"/sync/v1/{PRODUCTO}/legal/aceptar", datos, transporte)
+    if estado not in (200, 201): raise ErrorGigadevs(d.get("message") or f"La consola de Gigadevs respondió {estado}")
+    return d.get("aceptaciones") or []

@@ -134,6 +134,30 @@ def test_recorrido_completo(app):
         assert adm.get("/").status_code == 200
     finally:
         os.environ.pop("SURTIA_LICENSE_ENFORCE", None)
+    # --- documentos legales aprobados en la Consola Maestra: el administrador los acepta al ingresar; queda la evidencia
+    from app import gigadevs as GD
+    vistos = []
+    def consola(metodo, ruta, cuerpo, cab):
+        if "/legal/pendientes" in ruta:
+            if any(v[0] == "aceptar" for v in vistos): return 200, b'{"pendientes": []}'
+            doc = {"id": 9, "tipo": "contrato", "titulo": "Contrato de licencia y suscripción de Surtia", "version": 1, "huella": "b" * 64,
+                   "documento": {"id": 9, "titulo": "Contrato de licencia y suscripción de Surtia", "version": 1, "huella": "b" * 64,
+                                 "secciones": [{"titulo": "Partes", "parrafos": ["Texto del contrato."]}], "abogado": {"nombre": "María Pérez", "inpreabogado": "123456"}}}
+            return 200, json.dumps({"pendientes": [doc]}).encode()
+        vistos.append(("aceptar", json.loads(cuerpo))); return 201, b'{"aceptaciones": [1]}'
+    os.environ["GIGADEVS_SYNC_SECRET"] = "s" * 40; GD.TRANSPORTE = consola
+    try:
+        adm_l = adm
+        with adm_l.session_transaction() as ss: ss.pop("legal_ok_hasta", None)
+        r = adm_l.get("/")
+        assert r.status_code == 302 and r.headers["Location"].endswith("/legal/aceptar")
+        t = adm_l.get("/legal/aceptar").get_data(as_text=True)
+        assert "Antes de continuar" in t and "Inpreabogado N° 123456" in t
+        r = adm_l.post("/legal/aceptar", data={"acepto": ["9"]})
+        assert r.status_code == 302 and vistos[-1][1]["sujeto"] == "J-12345678-0" and vistos[-1][1]["rol"] == "Administrador"
+        assert _uno(app, "SELECT count(*) FROM aceptaciones_legales") == 1 and adm_l.get("/").status_code == 200
+    finally:
+        GD.TRANSPORTE = None; os.environ.pop("GIGADEVS_SYNC_SECRET", None)
     assert "no está configurada" in adm.get("/whatsapp").get_data(as_text=True)
     # --- pasarela OpenWA propia (simulada)
     pas = {"estado": "created", "telefono": None, "webhook": None, "enviados": [], "n": 0}

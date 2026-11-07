@@ -492,3 +492,9 @@ button.peligro.cargando::after{border-color:#fff;border-right-color:transparent}
   a{color:inherit}
 }
 @media (prefers-reduced-motion:reduce){.carga-barra.activa{transform:scaleX(.6)}.err-aro{display:none}}
+
+/* Aceptación de documentos legales al ingresar */
+.legal-aceptar{max-width:900px}.legal-doc{margin:14px 0 6px;border:1px solid #d9e2e2;border-radius:12px;background:#fff}
+.legal-doc summary{padding:12px 16px;cursor:pointer}.legal-texto{max-height:420px;overflow:auto;padding:4px 18px 14px;border-top:1px solid #d9e2e2}
+.legal-texto h2{font-size:.95rem;margin:14px 0 4px}.legal-texto p{font-size:.88rem;line-height:1.6;text-align:justify}
+.legal-check{display:flex;gap:8px;align-items:flex-start;margin:6px 2px 14px;font-weight:600}
