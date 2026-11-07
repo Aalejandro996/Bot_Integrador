@@ -6,7 +6,7 @@ from urllib.parse import unquote, urlsplit
 import segno
 from flask import Blueprint, abort, current_app, flash, g, redirect, render_template, request, session, url_for
 
-from .. import notificaciones as N, totp
+from .. import notificaciones as N, rls, totp
 from ..extensions import db, limiter
 from ..models import Usuario, ahora
 from ..seguridad import (BLOQUEO_MIN, ESPERA_RECUPERACION_S, MAX_INTENTOS, VIGENCIA_RECUPERACION_MIN, anular_recuperacion, hashear,
@@ -31,6 +31,7 @@ def login():
     if g.usuario is not None: return redirect(_destino(g.usuario))
     if request.method == "POST":
         nombre = (request.form.get("usuario") or "").strip().lower()[:254]
+        rls.ver_usuario(rls.usuario_por_nombre(nombre))      # RLS: solo la cuenta que intenta entrar queda visible
         u = db.session.query(Usuario).filter((db.func.lower(Usuario.username) == nombre) | (db.func.lower(Usuario.email) == nombre)).first()
         ok = verificar_clave(u.password_hash if u else None, request.form.get("clave") or "")
         if u is not None and u.bloqueado_hasta and u.bloqueado_hasta > ahora():
@@ -52,6 +53,7 @@ def login():
 def _pre() -> Usuario:
     if ahora().timestamp() - session.get("pre_t", 0) > 300:
         session.clear(); abort(401)
+    rls.ver_usuario(session.get("pre"))
     u = db.session.get(Usuario, session.get("pre") or 0)
     if u is None or not u.activo: abort(401)
     # El bloqueo de cuenta debe cubrir también el segundo factor, no solo la contraseña.
@@ -173,6 +175,7 @@ def recuperar():
     if g.usuario is not None: return redirect(_destino(g.usuario))
     if request.method == "POST":
         nombre = (request.form.get("usuario") or "").strip().lower()[:254]
+        rls.ver_usuario(rls.usuario_por_nombre(nombre))      # RLS: solo la cuenta que intenta entrar queda visible
         u = db.session.query(Usuario).filter((db.func.lower(Usuario.username) == nombre) | (db.func.lower(Usuario.email) == nombre)).first() if nombre else None
         reciente = (u is not None and u.token_recuperacion_vence is not None
                     and u.token_recuperacion_vence - timedelta(minutes=VIGENCIA_RECUPERACION_MIN) > ahora() - timedelta(seconds=ESPERA_RECUPERACION_S))
@@ -208,6 +211,7 @@ def recuperar_clave(token):
 @bp.route("/recuperar/confirmar", methods=["GET", "POST"])
 @limiter.limit("10/minute", methods=["POST"])
 def recuperar_confirmar():
+    rls.ver_usuario(session.get("rec"))
     u = db.session.get(Usuario, session.get("rec") or 0)
     vigente = (u is not None and u.activo and u.mfa_activo and u.clave_pendiente_hash and session.get("rec_tok") == u.token_recuperacion_hash
                and u.token_recuperacion_vence is not None and u.token_recuperacion_vence > ahora() and ahora().timestamp() - session.get("rec_t", 0) < 600)

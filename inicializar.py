@@ -19,6 +19,8 @@ def preparar_rol(db, rol):
     db.session.execute(t(f"REVOKE UPDATE, DELETE ON bitacora FROM {rol}"))                  # la bitácora solo crece
     db.session.execute(t(f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {rol}"))
     db.session.execute(t(f"GRANT EXECUTE ON FUNCTION surtia_empresa_por_webhook(text), surtia_empresa_por_conector(text) TO {rol}"))
+    db.session.execute(t(f"GRANT EXECUTE ON FUNCTION surtia_usuario_por_nombre(text), surtia_usuario_por_enlace(text, text), "
+                         f"surtia_existe_usuario(text), surtia_empresa_de_usuario(integer), surtia_correos_maestros() TO {rol}"))
     db.session.commit()
     print(f"[inicializar] Rol limitado «{rol}» listo (la app hace SET ROLE {rol}; RLS aplica).", flush=True)
 

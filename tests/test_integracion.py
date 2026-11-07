@@ -90,6 +90,7 @@ def test_recorrido_completo(app):
     from app.models import Usuario
     from app.seguridad import nuevo_enlace_activacion
     with app.app_context(), app.test_request_context(base_url="https://bot.test"):
+        from app import rls; rls.fijar(maestro=True)          # como inicializar.py (corre como dueño)
         u = Usuario(username="gigadevs", email="soporte@gigadevs.test", rol="Maestro"); db.session.add(u); db.session.flush(); enlace = nuevo_enlace_activacion(u); db.session.commit()
     root, sec_root = _activar(app, enlace)
     from app import correo
@@ -104,6 +105,7 @@ def test_recorrido_completo(app):
     assert "bloqueada" in anon.post("/login", data={"usuario": "gigadevs", "clave": CLAVE}).get_data(as_text=True)
     assert "Cuenta bloqueada por intentos fallidos · Surtia" in asuntos("soporte@gigadevs.test")
     with app.app_context():
+        from app import rls; rls.fijar(maestro=True)          # mantenimiento de la prueba (como el dueño)
         db.session.execute(db.text("UPDATE usuarios SET bloqueado_hasta = NULL")); db.session.commit()
     # --- empresa y su administrador
     r = root.post("/maestro/empresas", data={"accion": "crear", "razon_social": "General de Suministros Orituco, C.A.", "rif": "j123456780",
@@ -317,6 +319,21 @@ def test_recorrido_completo(app):
             assert "row-level security" in str(ex); db.session.rollback()
         rls.fijar(empresa_id=e2)
         assert db.session.execute(db.text("SELECT count(*) FROM bitacora WHERE empresa_id = :e"), {"e": e1}).scalar() == 0   # bitácora ajena: invisible
+        # usuarios: sin contexto ninguno; la empresa ve solo los suyos; nadie se muda de empresa
+        rls.fijar(); db.session.rollback()
+        assert db.session.execute(db.text("SELECT count(*) FROM usuarios")).scalar() == 0
+        rls.fijar(empresa_id=e2)
+        assert db.session.execute(db.text("SELECT count(DISTINCT empresa_id) FROM usuarios")).scalar() == 1
+        assert db.session.execute(db.text("SELECT count(*) FROM usuarios WHERE empresa_id = :e"), {"e": e1}).scalar() == 0
+        u2 = db.session.execute(db.text("SELECT id FROM usuarios WHERE empresa_id = :e LIMIT 1"), {"e": e2}).scalar()
+        rls.fijar(usuario_id=u2); db.session.rollback()
+        assert db.session.execute(db.text("SELECT array_agg(id) FROM usuarios")).scalar() == [u2]        # solo su propia cuenta
+        try:
+            db.session.execute(db.text("UPDATE usuarios SET empresa_id = :e WHERE id = :u"), {"e": e1, "u": u2}); db.session.flush()
+            raise AssertionError("RLS no bloqueó el cambio de empresa")
+        except Exception as ex:  # noqa: BLE001
+            assert "row-level security" in str(ex); db.session.rollback()
+        assert rls.usuario_por_nombre("otra") == u2 and rls.existe_usuario("otra") and not rls.existe_usuario("nadie-xyz")
         rls.fijar(maestro=True)
         assert db.session.execute(db.text("SELECT count(*) FROM empresas")).scalar() >= 2                # el Maestro ve todas
     # --- y luego WooCommerce (nube): el Maestro guarda las claves cifradas y prueba la lectura
@@ -386,6 +403,7 @@ def test_recorrido_completo(app):
     t = r.post("/recuperar/confirmar", data={"codigo": "000000"}).get_data(as_text=True)
     assert "La contraseña aún no cambió" in t
     with app.app_context():                                     # el código anterior ya se usó en esta ventana de 30 s
+        from app import rls; rls.fijar(maestro=True)
         db.session.execute(db.text("UPDATE usuarios SET mfa_ultimo_contador = 0 WHERE username='gigadevs'")); db.session.commit()
     assert r.post("/recuperar/confirmar", data={"codigo": totp.codigo(sec_root)}).headers["Location"] == "/maestro"
     assert "Su contraseña cambió · Surtia" in asuntos("soporte@gigadevs.test")
