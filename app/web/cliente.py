@@ -7,6 +7,7 @@ from flask import Response, abort, current_app, flash, g, redirect, render_templ
 from sqlalchemy import func, select
 
 from .. import notificaciones as N
+from .. import rls
 from .. import openwa as OW
 from .. import servicios as SV
 from .. import sistemas as SIS
@@ -361,7 +362,8 @@ def usuarios():
             if a == "invitar":
                 nombre = (F.get("username") or "").strip().lower()
                 if not re.fullmatch(r"[a-z0-9._-]{3,40}", nombre): raise ValueError("Usuario: 3 a 40 letras, números, punto, guion")
-                if db.session.query(Usuario).filter(func.lower(Usuario.username) == nombre).first(): raise ValueError("Ese usuario ya existe")
+                if rls.existe_usuario(nombre) or db.session.query(Usuario).filter(func.lower(Usuario.username) == nombre).first():
+                    raise ValueError("Ese usuario ya existe")             # también si es de otra empresa (RLS no la deja ver)
                 u = Usuario(username=nombre, email=(F.get("email") or "").strip()[:254] or None, nombre=(F.get("nombre") or "").strip()[:120] or None,
                             rol=F.get("rol") if F.get("rol") in ("Administrador", "Operador") else "Operador", empresa_id=eid)
                 db.session.add(u); db.session.flush()

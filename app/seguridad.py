@@ -68,6 +68,8 @@ def nuevo_enlace_recuperacion(u: Usuario) -> str:
 
 def usuario_por_recuperacion(token: str) -> Usuario | None:
     if not token or len(token) > 100: return None
+    from . import rls
+    rls.ver_usuario(rls.usuario_por_enlace("recuperacion", _h(token)))
     u = db.session.query(Usuario).filter_by(token_recuperacion_hash=_h(token)).one_or_none()
     if u is None or not u.activo or not u.mfa_activo or u.token_recuperacion_vence is None or u.token_recuperacion_vence < ahora(): return None
     return u
@@ -79,6 +81,8 @@ def anular_recuperacion(u: Usuario):
 
 def usuario_por_token(token: str) -> Usuario | None:
     if not token or len(token) > 100: return None
+    from . import rls
+    rls.ver_usuario(rls.usuario_por_enlace("activacion", _h(token)))
     u = db.session.query(Usuario).filter_by(token_activacion_hash=_h(token)).one_or_none()
     if u is None or not u.activo or u.token_activacion_vence is None or u.token_activacion_vence < ahora(): return None
     return u
@@ -107,6 +111,8 @@ def cargar_usuario():
     uid = session.get("uid")
     if not uid: return
     t = ahora().timestamp()
+    from . import rls
+    rls.ver_usuario(uid)                   # la cookie firmada dice quién es: solo su fila es visible hasta validarla
     u = db.session.get(Usuario, uid)
     if (u is None or not u.activo or session.get("ver") != u.sesion_version or t - session.get("t", 0) > current_app.config["INACTIVIDAD_S"]
             or t - session.get("inicio", 0) > current_app.config["PERMANENT_SESSION_LIFETIME"]):

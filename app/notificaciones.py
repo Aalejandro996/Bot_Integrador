@@ -51,7 +51,10 @@ def correos_empresa(eid, roles=("Administrador",)) -> list[str]:
 
 
 def correos_maestro() -> list[str]:
-    us = db.session.execute(select(Usuario.email).where(Usuario.rol == "Maestro", Usuario.activo.is_(True), Usuario.email.is_not(None))).scalars().all()
+    if db.engine.dialect.name == "postgresql":     # RLS: desde el contexto de una empresa los Maestros no se ven; solo sus correos
+        us = list(db.session.execute(db.text("SELECT * FROM surtia_correos_maestros()")).scalars())
+    else:
+        us = db.session.execute(select(Usuario.email).where(Usuario.rol == "Maestro", Usuario.activo.is_(True), Usuario.email.is_not(None))).scalars().all()
     return [*us, current_app.config.get("MAESTRO_EMAIL") or ""]
 
 
