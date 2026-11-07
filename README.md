@@ -61,6 +61,14 @@ empresa» → pegar el archivo. La tabla muestra si está vigente y hasta cuánd
 - Clave pública: `PRODUCT_LICENSE_PUBLIC_KEY` o, si falta, se consulta a `PRODUCT_LICENSE_SERVER_URL` (por defecto
   `https://erp-licencias.onrender.com/v1/clave-publica`). La clave privada nunca sale del servidor de licencias.
 
+## Conexión con la Consola Maestra de Gigadevs
+Las empresas que se crean, suspenden o reactivan aquí se envían solas a la Consola Maestra (Contax → Surtia → Clientes), donde
+Gigadevs lleva planes, órdenes y pagos, suscripción, presupuestos, contratos y facturas. Consola → Empresas → «Sincronizar con
+Gigadevs» las reenvía todas y trae las licencias de las suscripciones vigentes; en cada despliegue también se envían.
+Variables: `GIGADEVS_SYNC_SECRET` (igual a `SYNC_SECRET_SURTIA` del servidor de licencias, mínimo 32 caracteres) y
+`GIGADEVS_SYNC_URL` (por defecto `https://erp-licencias.onrender.com`). Peticiones firmadas con HMAC-SHA256, hora y nonce de un uso
+(`app/gigadevs.py`). Si la consola no responde, Surtia sigue funcionando y avisa.
+
 ## Seguridad
 - Contraseñas Argon2id (≥12 caracteres, 3 clases, sin el usuario); **MFA TOTP obligatorio** para todos; bloqueo de 15 min tras 5
   fallos; el paso intermedio (clave correcta, falta MFA) vence a los 5 min; códigos TOTP de un solo uso.

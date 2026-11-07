@@ -146,6 +146,8 @@ def maestro_empresas():
                 enlace = nuevo_enlace_activacion(u)
                 registrar("EMPRESA_CREADA", f"{e.razon_social} {e.rif} admin={u.username} sistema={sistema}", empresa_id=e.id); db.session.commit()
                 flash("Empresa creada. " + N.enlace_activacion(u, enlace, empresa=e)[1] + f" Siguiente paso: configure su sistema ({SIS.SISTEMAS[sistema]['nombre']}).")
+                from .. import gigadevs as GD
+                if (err := GD.enviar_seguro(e)): flash(f"La empresa no llegó a la consola de Gigadevs ({err}). Use «Sincronizar con Gigadevs».")
                 return e.id
             elif a in ("licencia", "quitar_licencia"):
                 from .. import licencia as LIC
@@ -162,6 +164,22 @@ def maestro_empresas():
                 e.licencia_token = None
                 registrar("LICENCIA_QUITADA", e.razon_social, empresa_id=e.id); db.session.commit()
                 return f"Licencia de {e.razon_social} quitada"
+            elif a == "sincronizar":
+                from .. import gigadevs as GD
+                from .. import licencia as LIC
+                if not GD.configurado(): raise ValueError("Configure GIGADEVS_SYNC_SECRET para conectar con la consola de Gigadevs")
+                enviadas = licencias = 0; errores = []
+                for e in db.session.execute(select(Empresa).order_by(Empresa.id)).scalars():
+                    try:
+                        GD.enviar_empresa(e); enviadas += 1
+                        token = GD.traer_licencia(e)
+                        if token and token != e.licencia_token and LIC.verificar(token, e.rif)[0]:
+                            e.licencia_token = token; licencias += 1
+                    except GD.ErrorGigadevs as ex:
+                        errores.append(f"{e.razon_social}: {ex}")
+                registrar("GIGADEVS_SINCRONIZADO", f"empresas={enviadas} licencias={licencias} errores={len(errores)}"); db.session.commit()
+                return (f"{enviadas} empresa(s) enviada(s) a la consola de Gigadevs; {licencias} licencia(s) nueva(s) traída(s)."
+                        + (" Errores: " + "; ".join(errores[:3]) if errores else ""))
             elif a in ("suspender", "reactivar", "reenlace"):
                 e = db.session.get(Empresa, int(F["eid"]))
                 if e is None: raise ValueError("Empresa inexistente")
@@ -172,6 +190,9 @@ def maestro_empresas():
                 else:
                     e.activa = a == "reactivar"
                 registrar("EMPRESA_" + a.upper(), e.razon_social, empresa_id=e.id); db.session.commit()
+                if a != "reenlace":
+                    from .. import gigadevs as GD
+                    if (err := GD.enviar_seguro(e)): flash(f"El cambio no llegó a la consola de Gigadevs ({err}).")
                 if a == "reenlace": flash(N.enlace_activacion(u, enlace, "reenlace", empresa=e)[1] + " Reemplaza su clave y su MFA.")
             else: raise ValueError("Acción inválida")
         nuevo = []
@@ -192,6 +213,10 @@ def maestro_empresas():
                        campo("username", "Usuario del administrador"), campo("email", "Correo del administrador", "email", req=False),
                        campo("sistema", "Sistema administrativo a conectar", "select", opciones=OPCIONES_SISTEMA, valor="profit",
                              ayuda="Después de crearla verá las opciones de ese sistema")])),
+        dict(titulo="Consola Maestra de Gigadevs", nota="Las empresas se envían solas al crearlas, suspenderlas o reactivarlas: allá Gigadevs lleva sus planes, "
+             "pagos, suscripción, presupuestos, contratos y facturas. Este botón vuelve a enviarlas todas y trae las licencias de las suscripciones vigentes. "
+             + ("Conexión configurada." if __import__("app.gigadevs", fromlist=["x"]).configurado() else "Falta configurar GIGADEVS_SYNC_SECRET."),
+             form=dict(action=request.path, boton="Sincronizar con Gigadevs", campos=[oculto("sincronizar")])),
         dict(titulo="Licencia de la empresa", nota="Pegue el archivo de licencia que descargó en la Consola Maestra de Gigadevs (Surtia → "
              "Suscripciones). Debe ser de Surtia y del mismo RIF de la empresa. " + ("El control de licencias está ACTIVO: sin licencia vigente la empresa no "
              "entra y el bot no atiende." if __import__("app.licencia", fromlist=["x"]).exigida() else "El control está apagado (SURTIA_LICENSE_ENFORCE): la "
