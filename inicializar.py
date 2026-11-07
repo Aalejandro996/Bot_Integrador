@@ -7,12 +7,33 @@ import sys
 sys.path.insert(0, ".")
 
 
+def preparar_rol(db, rol):
+    """Rol sin privilegios de dueño con el que trabaja la app (SET ROLE): para él sí aplica RLS."""
+    import re
+    if not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", rol): sys.exit("DB_ROL_APLICACION inválido")
+    t = db.text
+    db.session.execute(t(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{rol}') THEN CREATE ROLE {rol} NOLOGIN; END IF; END $$"))
+    db.session.execute(t(f"GRANT {rol} TO CURRENT_USER"))
+    db.session.execute(t(f"GRANT USAGE ON SCHEMA public TO {rol}"))
+    db.session.execute(t(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {rol}"))
+    db.session.execute(t(f"REVOKE UPDATE, DELETE ON bitacora FROM {rol}"))                  # la bitácora solo crece
+    db.session.execute(t(f"GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO {rol}"))
+    db.session.execute(t(f"GRANT EXECUTE ON FUNCTION surtia_empresa_por_webhook(text), surtia_empresa_por_conector(text) TO {rol}"))
+    db.session.commit()
+    print(f"[inicializar] Rol limitado «{rol}» listo (la app hace SET ROLE {rol}; RLS aplica).", flush=True)
+
+
 def main():
     from app import create_app
     from app.extensions import db
     from app.models import Parametros, ProfitPlataforma, Usuario
     from app.seguridad import nuevo_enlace_activacion
-    app = create_app()
+    from config import Config
+    rol = Config.DB_ROL_APLICACION
+
+    class Dueño(Config):
+        DB_ROL_APLICACION = ""            # las tablas, las políticas RLS y el rol se crean como dueño
+    app = create_app(Dueño)
     with app.app_context(), app.test_request_context(base_url=app.config["APP_BASE_URL"]):
         db.create_all()
         # columnas nuevas en tablas que ya existían (create_all no altera tablas)
@@ -46,6 +67,11 @@ def main():
                 print(f"[inicializar] Maestro «{u.username}»: " + (texto if enviado and texto.startswith("Enviamos") else
                       f"active la cuenta con este enlace (72 h, un uso): {enlace}"), flush=True)
         db.session.commit()
+        if db.engine.dialect.name == "postgresql":
+            from pathlib import Path
+            db.session.execute(db.text(Path(__file__).with_name("migraciones").joinpath("rls.sql").read_text(encoding="utf-8"))); db.session.commit()
+            print("[inicializar] RLS aplicado: cada empresa solo ve sus datos.", flush=True)
+            if rol: preparar_rol(db, rol)
         print("[inicializar] Base de datos lista.", flush=True)
         # En cada despliegue, las empresas se envían a la Consola Maestra de Gigadevs (idempotente; un fallo no detiene el despliegue)
         from app import gigadevs as GD

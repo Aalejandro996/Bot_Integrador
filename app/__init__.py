@@ -17,6 +17,11 @@ def create_app(config=None):
         raise RuntimeError("Faltan SECRET_KEY, FIELD_ENCRYPTION_KEY o DATABASE_URL")
     logging.basicConfig(level=logging.INFO)
     db.init_app(app); csrf.init_app(app); limiter.init_app(app)
+    from . import rls
+    rls.instalar()
+    if app.config.get("DB_ROL_APLICACION"):
+        with app.app_context():
+            rls.rol_limitado(db.engine, app.config["DB_ROL_APLICACION"])
     app.extensions["cifrador"] = CifradorCampos(app.config["FIELD_ENCRYPTION_KEY"])
     from . import models  # noqa: F401  (registra tablas)
     from . import interfaz

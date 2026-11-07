@@ -34,6 +34,8 @@ projects:
                   type: pserv
                   name: bot-whatsapp
                   property: hostport
+              - key: DB_ROL_APLICACION           # RLS: la app hace SET ROLE a este rol sin privilegios de dueño (lo crea inicializar.py)
+                value: surtia_app
               - key: MAESTRO_USUARIO             # su usuario de Gigadevs: el enlace de activación sale en el log del primer despliegue
                 sync: false
               - key: MAESTRO_EMAIL               # recibe el enlace de activación y las alertas de la plataforma

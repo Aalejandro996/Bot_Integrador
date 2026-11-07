@@ -38,17 +38,27 @@ def app():
         APP_BASE_URL = "https://bot.test"; WTF_CSRF_ENABLED = False; RATELIMIT_ENABLED = False; TASAS_AUTOMATICAS = False
         PRODUCCION = False; SESSION_COOKIE_SECURE = False; SESSION_COOKIE_NAME = "s"; MAESTRO_USUARIO = "gigadevs"
     from app import create_app
-    a = create_app(Cfg)
+    dueño = create_app(Cfg)                       # el esquema, las políticas RLS y el rol limitado se crean como dueño
     from app.extensions import db
     from app.models import Parametros, ProfitPlataforma
-    with a.app_context():
+    import inicializar
+    with dueño.app_context():
         db.create_all(); db.session.add(Parametros(id=1, tasa_usd=Decimal("36.5"), tasa_fecha=datetime.now().date())); db.session.add(ProfitPlataforma(id=1)); db.session.commit()
-    return a
+        db.session.execute(db.text((Path(__file__).resolve().parent.parent / "migraciones" / "rls.sql").read_text(encoding="utf-8"))); db.session.commit()
+        inicializar.preparar_rol(db, "surtia_app")
+        db.session.remove(); db.engine.dispose()
+
+    class CfgRol(Cfg):
+        DB_ROL_APLICACION = "surtia_app"          # la app corre como en producción: con RLS aplicado
+    return create_app(CfgRol)
 
 
 def _uno(app, sql, **p):
+    """Consulta de verificación de la prueba: mira como el Maestro (con RLS, sin contexto no se vería nada)."""
+    from app import rls
     from app.extensions import db
     with app.app_context():
+        rls.fijar(maestro=True)
         return db.session.execute(db.text(sql), p).scalar()
 
 
@@ -287,6 +297,28 @@ def test_recorrido_completo(app):
     assert "Catálogo importado: 1 artículo(s)" in t and "1 fila(s) sin código válido" in t
     assert _uno(app, "SELECT existencia FROM profit_articulos WHERE empresa_id=:e AND codigo='TOR-01'", e=e2) == Decimal("1200")
     t = otra.get("/catalogo").get_data(as_text=True); assert "TORNILLO 1/4" in t and "HARINA" not in t
+    # --- RLS: la BASE DE DATOS aísla las empresas aunque la consulta no filtre (como si el código olvidara el filtro)
+    from app import rls
+    from app.extensions import db
+    e1 = _uno(app, "SELECT id FROM empresas WHERE rif <> 'J-22222222-2' ORDER BY id LIMIT 1")
+    with app.app_context():
+        assert db.session.execute(db.text("SELECT current_user")).scalar() == "surtia_app"            # la app no es dueña: RLS aplica
+        sin_filtro = lambda: {t: db.session.execute(db.text(f"SELECT count(DISTINCT empresa_id) FROM {t}")).scalar()
+                              for t in ("profit_articulos", "pedidos", "mensajes", "contactos", "whatsapp_config")}
+        assert set(sin_filtro().values()) == {0} and db.session.execute(db.text("SELECT count(*) FROM empresas")).scalar() == 0   # sin contexto: nada
+        rls.fijar(empresa_id=e2)
+        assert db.session.execute(db.text("SELECT count(*) FROM empresas")).scalar() == 1
+        assert db.session.execute(db.text("SELECT count(*) FROM pedidos")).scalar() == 0               # los pedidos de la otra empresa no existen
+        assert db.session.execute(db.text("SELECT array_agg(DISTINCT empresa_id) FROM profit_articulos")).scalar() == [e2]
+        try:                                                                                            # tampoco puede escribir en la ajena
+            db.session.execute(db.text("INSERT INTO contactos (empresa_id, telefono, nombre) VALUES (:e, '584140000000', 'x')"), {"e": e1})
+            db.session.flush(); raise AssertionError("RLS no bloqueó la escritura en otra empresa")
+        except Exception as ex:  # noqa: BLE001
+            assert "row-level security" in str(ex); db.session.rollback()
+        rls.fijar(empresa_id=e2)
+        assert db.session.execute(db.text("SELECT count(*) FROM bitacora WHERE empresa_id = :e"), {"e": e1}).scalar() == 0   # bitácora ajena: invisible
+        rls.fijar(maestro=True)
+        assert db.session.execute(db.text("SELECT count(*) FROM empresas")).scalar() >= 2                # el Maestro ve todas
     # --- y luego WooCommerce (nube): el Maestro guarda las claves cifradas y prueba la lectura
     def woo(metodo, url, cuerpo=None, cab=None):
         assert cab["Authorization"].startswith("Basic ")

@@ -28,6 +28,11 @@ def salud():
 @limiter.limit("300/minute")
 def aviso_whatsapp(clave):
     if len(clave) > 64: abort(404)
+    from .. import rls
+    eid_secreto = rls.empresa_por("surtia_empresa_por_webhook", clave)
+    if db.engine.dialect.name == "postgresql":
+        if eid_secreto is None: abort(404)
+        rls.fijar(empresa_id=eid_secreto)
     cfg = db.session.execute(select(WhatsappConfig).where(WhatsappConfig.clave_webhook == clave)).scalar_one_or_none()
     if cfg is None: abort(404)
     e = db.session.get(Empresa, cfg.empresa_id)
@@ -60,6 +65,11 @@ def _conector():
     cid = request.headers.get("X-Surtia-Conector", "")
     if not cid or len(cid) > 64: abort(401)
     from ..models import ProfitConexion
+    from .. import rls
+    eid_secreto = rls.empresa_por("surtia_empresa_por_conector", cid)
+    if db.engine.dialect.name == "postgresql":
+        if eid_secreto is None: abort(401)
+        rls.fijar(empresa_id=eid_secreto)
     c = db.session.execute(select(ProfitConexion).where(ProfitConexion.conector_id == cid)).scalar_one_or_none()
     cuerpo = request.get_data(cache=True)
     if c is None or SIS.SISTEMAS.get(c.sistema, {}).get("modo") not in ("agente", "api") or not PF.firma_valida(SV.cifrador().descifrar(c.secreto_cifrado), request.headers.get("X-Surtia-Fecha", ""), cuerpo,

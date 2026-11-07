@@ -341,6 +341,8 @@ def documento_publico(token):
     datos = SV.leer_enlace(token)
     if not datos: abort(404)
     tipo, eid, oid = datos
+    from .. import rls
+    rls.fijar(empresa_id=eid)                     # el enlace firmado dice de qué empresa es: solo esa queda visible
     e = db.session.get(Empresa, eid)
     obj = db.session.get(Pedido if tipo == "pedido" else Presupuesto, oid)
     if e is None or obj is None or obj.empresa_id != eid: abort(404)
