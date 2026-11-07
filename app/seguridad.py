@@ -96,6 +96,8 @@ def iniciar_sesion(u: Usuario):
     session.clear()
     session.permanent = True
     session.update(uid=u.id, ver=u.sesion_version, t=ahora().timestamp(), inicio=ahora().timestamp())
+    from . import rls
+    rls.de_usuario(u)
     u.ultimo_acceso, u.intentos_fallidos, u.bloqueado_hasta = ahora(), 0, None
 
 
@@ -109,6 +111,8 @@ def cargar_usuario():
     if (u is None or not u.activo or session.get("ver") != u.sesion_version or t - session.get("t", 0) > current_app.config["INACTIVIDAD_S"]
             or t - session.get("inicio", 0) > current_app.config["PERMANENT_SESSION_LIFETIME"]):
         session.clear(); return
+    from . import rls
+    rls.de_usuario(u)                     # desde aquí PostgreSQL solo entrega filas de su empresa (o todo, si es el Maestro)
     if u.empresa_id is not None:
         from .models import Empresa
         e = db.session.get(Empresa, u.empresa_id)

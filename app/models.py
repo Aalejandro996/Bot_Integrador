@@ -82,6 +82,8 @@ class Bitacora(db.Model):
     accion = db.Column(db.Text, nullable=False)
     detalle = db.Column(db.Text)
     ip = db.Column(db.Text)
+    # Sin RETURNING: con RLS cualquiera puede ESCRIBIR en la bitácora (también intentos fallidos sin sesión), pero solo lee lo suyo
+    __table_args__ = {"implicit_returning": False}
 
 
 class Parametros(db.Model):

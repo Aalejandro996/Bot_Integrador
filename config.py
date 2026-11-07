@@ -34,6 +34,8 @@ class Config:
     OPENWA_URL = os.environ.get("OPENWA_URL", "")
     if OPENWA_URL and "://" not in OPENWA_URL: OPENWA_URL = "http://" + OPENWA_URL      # Render da «host:puerto» de la red privada
     OPENWA_API_KEY = os.environ.get("OPENWA_API_KEY", "")
+    # RLS: la app hace SET ROLE a este rol sin privilegios de dueño (inicializar.py lo crea); vacío = sin SET ROLE (desarrollo)
+    DB_ROL_APLICACION = os.environ.get("DB_ROL_APLICACION", "").strip()
     MAESTRO_USUARIO = os.environ.get("MAESTRO_USUARIO", "")
     MAESTRO_EMAIL = os.environ.get("MAESTRO_EMAIL", "")
     TASAS_AUTOMATICAS = os.environ.get("TASAS_AUTOMATICAS", "1") == "1"

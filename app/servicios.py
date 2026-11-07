@@ -328,10 +328,13 @@ def programador(app, cada_s=60):
         while True:
             time.sleep(cada_s)
             with app.app_context():
+                from . import rls
                 try:
+                    rls.fijar(maestro=True)               # tarea interna: lista las empresas pendientes
                     if db.engine.dialect.name == "postgresql" and not db.session.execute(db.text("SELECT pg_try_advisory_xact_lock(472019)")).scalar():
                         db.session.rollback(); continue
                     for eid in pendientes_nube():
+                        rls.fijar(empresa_id=eid)         # cada lectura, solo con los datos de esa empresa
                         try: sincronizar_fuente(eid); db.session.commit()
                         except ValueError as e: db.session.rollback(); log.warning("Lectura programada empresa %s: %s", eid, e)
                     db.session.commit()
