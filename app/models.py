@@ -58,6 +58,21 @@ class Usuario(db.Model):
                       CheckConstraint("(rol = 'Maestro') = (empresa_id IS NULL)", name="ck_usuario_empresa"))
 
 
+class AceptacionLegal(db.Model):
+    """Aceptación de un documento legal de Surtia (versión aprobada en la Consola Maestra de Gigadevs): copia local de la evidencia."""
+    __tablename__ = "aceptaciones_legales"
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.ForeignKey("usuarios.id"), nullable=False, index=True)
+    empresa_id = db.Column(db.ForeignKey("empresas.id"), index=True)
+    documento_id = db.Column(db.Integer, nullable=False)
+    tipo = db.Column(db.Text, nullable=False)
+    version = db.Column(db.Integer, nullable=False)
+    huella = db.Column(db.String(64), nullable=False)
+    ip = db.Column(db.Text)
+    agente = db.Column(db.Text)
+    aceptado = db.Column(db.DateTime(timezone=True), default=ahora, nullable=False)
+
+
 class Bitacora(db.Model):
     __tablename__ = "bitacora"
     id = db.Column(db.BigInteger, primary_key=True)

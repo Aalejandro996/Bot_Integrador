@@ -20,6 +20,9 @@ log = logging.getLogger("bot.gigadevs")
 PRODUCTO = "surtia"
 
 
+TRANSPORTE = None   # las pruebas lo reemplazan: (metodo, ruta, cuerpo, cabeceras) -> (estado, bytes)
+
+
 class ErrorGigadevs(Exception):
     pass
 
@@ -45,6 +48,7 @@ def _peticion(metodo, ruta, datos=None, transporte=None):
     cuerpo = json.dumps(datos).encode() if datos is not None else b""
     cab = {"X-Gigadevs-Firma": firma(os.environ["GIGADEVS_SYNC_SECRET"], metodo, ruta, cuerpo), "Accept": "application/json"}
     if datos is not None: cab["Content-Type"] = "application/json"
+    transporte = transporte or TRANSPORTE
     if transporte: estado, resp = transporte(metodo, ruta, cuerpo, cab)
     else:
         req = urllib.request.Request(_url() + ruta, cuerpo or None, cab, method=metodo)
@@ -82,3 +86,17 @@ def traer_licencia(e, transporte=None) -> str | None:
     if estado == 404: return None
     if estado != 200 or not d.get("token"): raise ErrorGigadevs(d.get("message") or f"La consola de Gigadevs respondió {estado}")
     return d["token"]
+
+
+def legal_pendientes(usuario: str, perfil: str = "usuario", transporte=None) -> list:
+    """Documentos legales vigentes de Surtia (aprobados en la Consola Maestra) que esta persona aún no aceptó."""
+    from urllib.parse import urlencode
+    estado, d = _peticion("GET", f"/sync/v1/{PRODUCTO}/legal/pendientes?{urlencode({'usuario': usuario, 'perfil': perfil})}", None, transporte)
+    if estado != 200: raise ErrorGigadevs(d.get("message") or f"La consola de Gigadevs respondió {estado}")
+    return d.get("pendientes") or []
+
+
+def legal_aceptar(transporte=None, **datos) -> list:
+    estado, d = _peticion("POST", f"/sync/v1/{PRODUCTO}/legal/aceptar", datos, transporte)
+    if estado not in (200, 201): raise ErrorGigadevs(d.get("message") or f"La consola de Gigadevs respondió {estado}")
+    return d.get("aceptaciones") or []

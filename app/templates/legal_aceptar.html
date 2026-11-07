@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block contenido %}
+<section class="tarjeta legal-aceptar">
+  <h1>Antes de continuar</h1>
+  <p>Para usar Surtia lea y acepte {{ 'los siguientes documentos' if pendientes|length > 1 else 'el siguiente documento' }}, aprobados por Gigadevs Corp.
+  Su aceptación queda registrada con la versión, la fecha y hora, su dirección IP y la huella del texto, con plena validez conforme al Decreto-Ley sobre
+  Mensajes de Datos y Firmas Electrónicas.</p>
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% for p in pendientes %}{% set d = p.documento %}
+  <details class="legal-doc" {{ 'open' if loop.first }}><summary><b>{{ d.titulo }}</b> · versión {{ d.version }}</summary>
+    <div class="legal-texto">{% for s in d.secciones %}<h2>{{ loop.index }}. {{ s.titulo }}</h2>{% for x in s.parrafos %}<p>{{ x }}</p>{% endfor %}{% endfor %}
+    {% if d.abogado %}<p class="peq">Aprobado por Abg. {{ d.abogado.nombre }} · Inpreabogado N° {{ d.abogado.inpreabogado }}</p>{% endif %}</div></details>
+  <label class="legal-check"><input type="checkbox" name="acepto" value="{{ d.id }}" required> He leído y acepto: {{ d.titulo }}</label>
+  {% endfor %}
+  <button class="btn">Acepto y continúo</button></form>
+</section>
+{% endblock %}
